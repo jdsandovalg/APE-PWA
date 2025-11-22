@@ -1,0 +1,18 @@
+{
+  "source": "EEGSA - Octubre 2025",
+  "pdf": "Octubre2025.pdf",
+  "period": "Ago-Oct 2025",
+  "extractedAt": "2025-10-28T00:00:00Z",
+  "rates": {
+    "fixedCharge_Q": 13.136031,
+    "energy_Q_per_kWh": 1.136754,
+    "distribution_Q_per_kWh": 0.245609,
+    "potencia_Q_per_kWh": 0.053700,
+    "contribucion_AP_percent": 13.8,
+    "iva_amount_example_Q": 6.86,
+    "total_sin_iva_Q": 57.13,
+    "total_con_iva_Q": 63.99,
+    "total_invoice_Q": 71.87
+  },
+  "notes": "Values parsed automatically from Octubre2025.pdf candidate lines. Confirm structure and fields before using for billing computations."
+}

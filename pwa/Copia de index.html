@@ -1,0 +1,948 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="theme-color" content="#1e293b">
+  <meta name="description" content="Sistema de gestión para autoproductores de energía solar en Guatemala">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Gestor Solar - Autoproducción de Energía</title>
+  
+  <!-- PWA Icons -->
+  <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☀️</text></svg>">
+  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>☀️</text></svg>">
+  <link rel="manifest" href="/manifest.json">
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- React & ReactDOM (development builds for easier debugging) -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+  
+  <!-- Babel Standalone for JSX -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      overflow-x: hidden;
+      /* Solución: Añadir color de fondo base para prevenir el "flash" */
+      background-color: #0f172a; /* slate-900 */
+    }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 16px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+      animation: slideIn 0.3s ease-out;
+    }
+    
+    .glass-button {
+      background: rgba(255, 255, 255, 0.1);
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      border-radius: 12px;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      transition: all 0.3s ease;
+      cursor: pointer;
+    }
+    
+    .glass-button:hover {
+      background: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+    }
+
+    .glass-button:active {
+      transform: translateY(0);
+    }
+
+    ::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+    
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.2);
+      border-radius: 4px;
+    }
+    
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.3);
+    }
+
+    input[type="number"]::-webkit-inner-spin-button,
+    input[type="number"]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+    
+    input[type="number"] {
+      -moz-appearance: textfield;
+    }
+
+    input:focus, button:focus, select:focus {
+      outline: none;
+      border-color: rgba(139, 92, 246, 0.5);
+      box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.1);
+    }
+
+    @keyframes slideIn {
+      from {
+        opacity: 0;
+        transform: translateY(20px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    .animate-pulse {
+      animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+
+    /* Mobile optimizations */
+    @media (max-width: 640px) {
+      .glass-card {
+        border-radius: 12px;
+      }
+    }
+
+    /* Loading spinner */
+    .spinner {
+      border: 3px solid rgba(255, 255, 255, 0.1);
+      border-top: 3px solid #fff;
+      border-radius: 50%;
+      width: 40px;
+      height: 40px;
+      animation: spin 1s linear infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel" data-presets="react">
+    try {
+      const { useState, useEffect } = React;
+      const makeIcon = (emoji) => (props) => React.createElement('span', { className: props?.className, style: { fontSize: '1em', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' } }, emoji);
+
+      let Home, Calendar, DollarSign, Plus, TrendingUp, TrendingDown, Zap, Sun, BarChart3, FileText, Edit2, Trash2, Save, X, Download, Upload, Menu, Settings;
+      const getLucideIcon = (name, emoji) => {
+        try {
+          if (window.lucide && typeof window.lucide[name] === 'function') {
+            return window.lucide[name];
+          }
+        } catch (e) {
+          // ignore and fall back to emoji
+        }
+        return makeIcon(emoji);
+      };
+
+      Home = getLucideIcon('Home', '🏠');
+      Calendar = getLucideIcon('Calendar', '📅');
+      DollarSign = getLucideIcon('DollarSign', '💲');
+      Plus = getLucideIcon('Plus', '+');
+      TrendingUp = getLucideIcon('TrendingUp', '📈');
+      TrendingDown = getLucideIcon('TrendingDown', '📉');
+      Zap = getLucideIcon('Zap', '⚡');
+      Sun = getLucideIcon('Sun', '☀️');
+      BarChart3 = getLucideIcon('BarChart3', '📊');
+      FileText = getLucideIcon('FileText', '📄');
+      Edit2 = getLucideIcon('Edit2', '✏️');
+      Trash2 = getLucideIcon('Trash2', '🗑️');
+      Save = getLucideIcon('Save', '💾');
+      X = getLucideIcon('X', '✖️');
+      Download = getLucideIcon('Download', '⬇️');
+      Upload = getLucideIcon('Upload', '⬆️');
+      Menu = getLucideIcon('Menu', '☰');
+      Settings = getLucideIcon('Settings', '⚙️');
+
+    // Storage Helper Functions
+    const storage = {
+      async get(key) {
+        try {
+          return await window.storage.get(key);
+        } catch (error) {
+          const data = localStorage.getItem(key);
+          return data ? { value: data } : null;
+        }
+      },
+      async set(key, value) {
+        try {
+          return await window.storage.set(key, value);
+        } catch (error) {
+          localStorage.setItem(key, value);
+          return { key, value };
+        }
+      }
+    };
+
+    // Main App Component
+    const SolarEnergyPWA = () => {
+      const [activeTab, setActiveTab] = useState('dashboard');
+      const [readings, setReadings] = useState([]);
+      const [meters, setMeters] = useState([]);
+      const [rates, setRates] = useState([]);
+      const [selectedMeter, setSelectedMeter] = useState(null);
+      const [showAddReading, setShowAddReading] = useState(false);
+      const [showAddRate, setShowAddRate] = useState(false);
+      const [editingRate, setEditingRate] = useState(null);
+      const [loading, setLoading] = useState(true);
+
+      // Initial data
+      const initialMeter = {
+        id: 'Z90018',
+        owner: 'Vilma Susana Rojas Castillo',
+        nit: '623758-4',
+        address: '2 Calle 8-84 C.9 Mixco-08 V.Dealcala Zona 8, Mixco, Guatemala',
+        meterNumber: 'Z90018',
+        correlative: '661116',
+        distributor: 'EEGSA',
+        serviceType: 'BTSA',
+        panels: 6,
+        panelWatts: 625,
+        inverterKw: 5,
+        installDate: '2024-12-18'
+      };
+
+      const initialReadings = [
+        { date: '2024-12-18', received: 0, delivered: 0, days: 0 },
+        { date: '2025-01-12', received: 320, delivered: 94, days: 25 },
+        { date: '2025-01-20', received: 451, delivered: 122, days: 8 },
+        { date: '2025-01-24', received: 512, delivered: 137, days: 4 },
+        { date: '2025-01-28', received: 578, delivered: 151, days: 4 },
+        { date: '2025-01-29', received: 593, delivered: 154, days: 1 },
+        { date: '2025-02-08', received: 742, delivered: 194, days: 10 },
+        { date: '2025-02-19', received: 882, delivered: 245, days: 11 },
+        { date: '2025-02-24', received: 939, delivered: 266, days: 5 },
+        { date: '2025-02-26', received: 963, delivered: 274, days: 2 },
+        { date: '2025-03-14', received: 1217, delivered: 353, days: 16 },
+        { date: '2025-03-28', received: 1405, delivered: 424, days: 14 },
+        { date: '2025-04-25', received: 1802, delivered: 569, days: 28 },
+        { date: '2025-04-29', received: 1847, delivered: 587, days: 4 },
+        { date: '2025-05-22', received: 2158, delivered: 715, days: 23 },
+        { date: '2025-05-29', received: 2225, delivered: 751, days: 7 },
+        { date: '2025-06-23', received: 2456, delivered: 895, days: 25 },
+        { date: '2025-06-26', received: 2481, delivered: 909, days: 3 },
+        { date: '2025-07-24', received: 2805, delivered: 1053, days: 28 },
+        { date: '2025-07-28', received: 2837, delivered: 1074, days: 4 },
+        { date: '2025-08-29', received: 3180, delivered: 1235, days: 32 },
+        { date: '2025-09-29', received: 3498, delivered: 1403, days: 31 },
+        { date: '2025-10-28', received: 3805, delivered: 1550, days: 29 }
+      ];
+
+      const initialRate = {
+        id: 'EEGSA-2025-Q3',
+        distributor: 'EEGSA',
+        serviceType: 'BTSA',
+        validFrom: '2025-08-01',
+        validTo: '2025-10-31',
+        fixedCharge: 13.136031,
+        energyRate: 1.136754,
+        distributionRate: 0.245609,
+        powerRate: 0.053700,
+        publicLightingPct: 13.8,
+        ivaPct: 12
+      };
+
+      // Load data
+      useEffect(() => {
+        const loadData = async () => {
+          setLoading(true);
+          try {
+            const metersData = await storage.get('meters');
+            const readingsData = await storage.get('readings');
+            const ratesData = await storage.get('rates');
+
+            if (metersData?.value) {
+              const parsedMeters = JSON.parse(metersData.value);
+              setMeters(parsedMeters);
+              setSelectedMeter(parsedMeters[0]?.id || null);
+            } else {
+              setMeters([initialMeter]);
+              setSelectedMeter(initialMeter.id);
+              await storage.set('meters', JSON.stringify([initialMeter]));
+            }
+
+            if (readingsData?.value) {
+              setReadings(JSON.parse(readingsData.value));
+            } else {
+              setReadings(initialReadings);
+              await storage.set('readings', JSON.stringify(initialReadings));
+            }
+
+            if (ratesData?.value) {
+              setRates(JSON.parse(ratesData.value));
+            } else {
+              setRates([initialRate]);
+              await storage.set('rates', JSON.stringify([initialRate]));
+            }
+          } catch (error) {
+            console.error('Error loading data:', error);
+            setMeters([initialMeter]);
+            setSelectedMeter(initialMeter.id);
+            setReadings(initialReadings);
+            setRates([initialRate]);
+          }
+          setLoading(false);
+        };
+        loadData();
+      }, []);
+
+      // Calculate statistics
+      const calculateStats = () => {
+        if (readings.length < 2) return null;
+
+        const meterReadings = readings.filter(r => r.received > 0);
+        const lastReading = meterReadings[meterReadings.length - 1];
+        const previousReading = meterReadings[meterReadings.length - 2];
+
+        const monthConsumption = lastReading.received - previousReading.received;
+        const monthProduction = lastReading.delivered - previousReading.delivered;
+        const monthBalance = monthProduction - monthConsumption;
+
+        let totalCredit = 0;
+        for (let i = 1; i < meterReadings.length; i++) {
+          const consumption = meterReadings[i].received - meterReadings[i - 1].received;
+          const production = meterReadings[i].delivered - meterReadings[i - 1].delivered;
+          totalCredit += (production - consumption);
+        }
+
+        const currentRate = rates[0] || initialRate;
+        const energyToCharge = Math.max(0, monthConsumption - monthProduction);
+        const distributionCharge = monthProduction * currentRate.distributionRate;
+        const powerCharge = monthProduction * currentRate.powerRate;
+        const subtotal = currentRate.fixedCharge + (energyToCharge * currentRate.energyRate) + distributionCharge + powerCharge;
+        const withIVA = subtotal * (1 + currentRate.ivaPct / 100);
+        const publicLighting = subtotal * (currentRate.publicLightingPct / 100);
+        const totalBill = withIVA + publicLighting;
+
+        return {
+          monthConsumption,
+          monthProduction,
+          monthBalance,
+          totalCredit,
+          estimatedBill: totalBill,
+          lastReading,
+          avgDailyConsumption: monthConsumption / lastReading.days,
+          avgDailyProduction: monthProduction / lastReading.days
+        };
+      };
+
+      const stats = calculateStats();
+
+      // Save reading
+      const saveReading = async (newReading) => {
+        const updatedReadings = [...readings, newReading].sort((a, b) => 
+          new Date(a.date) - new Date(b.date)
+        );
+        setReadings(updatedReadings);
+        await storage.set('readings', JSON.stringify(updatedReadings));
+        setShowAddReading(false);
+      };
+
+      // Export data
+      const exportData = () => {
+        const data = {
+          meters,
+          readings,
+          rates,
+          exportDate: new Date().toISOString()
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `gestor-solar-backup-${new Date().toISOString().split('T')[0]}.json`;
+        a.click();
+      };
+
+      if (loading) {
+        return (
+          <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 flex items-center justify-center">
+            <div className="text-center">
+              <div className="spinner mx-auto mb-4"></div>
+              <p className="text-white text-lg">Cargando datos...</p>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 p-4">
+          <div className="max-w-7xl mx-auto">
+            {/* Header */}
+            <header className="glass-card mb-6 p-6">
+              <div className="flex items-center justify-between flex-wrap gap-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+                    <Sun className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h1 className="text-2xl font-bold text-white">Gestor Solar</h1>
+                    <p className="text-sm text-gray-400">Sistema de Autoproducción</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <button onClick={exportData} className="glass-button px-3 py-2 text-white hover:bg-white/20" title="Exportar datos">
+                    <Download className="w-5 h-5" />
+                  </button>
+                  <div className="text-right">
+                    <p className="text-sm text-gray-400">Contador</p>
+                    <p className="text-lg font-bold text-white">{selectedMeter || 'Z90018'}</p>
+                  </div>
+                </div>
+              </div>
+            </header>
+
+            {/* Navigation */}
+            <nav className="glass-card mb-6 p-2">
+              <div className="flex gap-2 overflow-x-auto">
+                <NavButton icon={<Home className="w-5 h-5" />} label="Inicio" active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} />
+                <NavButton icon={<Calendar className="w-5 h-5" />} label="Lecturas" active={activeTab === 'readings'} onClick={() => setActiveTab('readings')} />
+                <NavButton icon={<DollarSign className="w-5 h-5" />} label="Tarifas" active={activeTab === 'rates'} onClick={() => setActiveTab('rates')} />
+              </div>
+            </nav>
+
+            {/* Content */}
+            <main>
+              {activeTab === 'dashboard' && <Dashboard stats={stats} />}
+              {activeTab === 'readings' && <ReadingsView readings={readings} showAddReading={showAddReading} setShowAddReading={setShowAddReading} saveReading={saveReading} />}
+              {activeTab === 'rates' && <RatesView rates={rates} setRates={setRates} editingRate={editingRate} setEditingRate={setEditingRate} showAddRate={showAddRate} setShowAddRate={setShowAddRate} />}
+            </main>
+          </div>
+        </div>
+      );
+    };
+
+    // Dashboard Component
+    const Dashboard = ({ stats }) => (
+      <div className="space-y-6">
+        <div className="glass-card p-6">
+          <h2 className="text-2xl font-bold text-white mb-6 flex items-center gap-2">
+            <Sun className="w-8 h-8 text-yellow-400" />
+            Panel de Control
+          </h2>
+
+          {stats && (
+            <>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                <StatCard 
+                  icon={<Zap className="w-6 h-6" />}
+                  label="Crédito Acumulado"
+                  value={`${stats.totalCredit.toFixed(0)} kWh`}
+                  trend={stats.monthBalance > 0 ? 'up' : 'down'}
+                  color="text-green-400"
+                />
+                <StatCard 
+                  icon={<TrendingDown className="w-6 h-6" />}
+                  label="Consumo del Mes"
+                  value={`${stats.monthConsumption} kWh`}
+                  subtitle={`${stats.avgDailyConsumption.toFixed(1)} kWh/día`}
+                  color="text-red-400"
+                />
+                <StatCard 
+                  icon={<TrendingUp className="w-6 h-6" />}
+                  label="Producción del Mes"
+                  value={`${stats.monthProduction} kWh`}
+                  subtitle={`${stats.avgDailyProduction.toFixed(1)} kWh/día`}
+                  color="text-blue-400"
+                />
+                <StatCard 
+                  icon={<DollarSign className="w-6 h-6" />}
+                  label="Factura Estimada"
+                  value={`Q ${stats.estimatedBill.toFixed(2)}`}
+                  subtitle={`${stats.lastReading.days} días servicio`}
+                  color="text-purple-400"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="glass-card p-4">
+                  <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-blue-400" />
+                    Balance del Mes
+                  </h3>
+                  <div className="space-y-2">
+                    <ProgressBar 
+                      label="Producción"
+                      value={stats.monthProduction}
+                      max={Math.max(stats.monthConsumption, stats.monthProduction)}
+                      color="bg-green-500"
+                    />
+                    <ProgressBar 
+                      label="Consumo"
+                      value={stats.monthConsumption}
+                      max={Math.max(stats.monthConsumption, stats.monthProduction)}
+                      color="bg-red-500"
+                    />
+                    <div className="pt-2 border-t border-white/10">
+                      <p className="text-sm text-gray-300">
+                        Saldo: <span className={`font-bold ${stats.monthBalance > 0 ? 'text-green-400' : 'text-red-400'}`}>
+                          {stats.monthBalance > 0 ? '+' : ''}{stats.monthBalance} kWh
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="glass-card p-4">
+                  <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+                    <FileText className="w-5 h-5 text-purple-400" />
+                    Última Lectura
+                  </h3>
+                  <div className="space-y-2 text-sm">
+                    <InfoRow label="Fecha" value={new Date(stats.lastReading.date).toLocaleDateString('es-GT')} />
+                    <InfoRow label="Recibida" value={`${stats.lastReading.received} kWh`} />
+                    <InfoRow label="Entregada" value={`${stats.lastReading.delivered} kWh`} />
+                    <InfoRow label="Días servicio" value={stats.lastReading.days} />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    );
+
+    // Readings View Component
+    const ReadingsView = ({ readings, showAddReading, setShowAddReading, saveReading }) => (
+      <div className="space-y-4">
+        <div className="flex justify-between items-center flex-wrap gap-3">
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <Calendar className="w-8 h-8 text-blue-400" />
+            Historial de Lecturas
+          </h2>
+          <button
+            onClick={() => setShowAddReading(true)}
+            className="glass-button px-4 py-2 flex items-center gap-2 text-white hover:bg-white/20"
+          >
+            <Plus className="w-5 h-5" />
+            Nueva Lectura
+          </button>
+        </div>
+
+        <div className="glass-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead className="bg-white/5 border-b border-white/10">
+                <tr>
+                  <th className="px-4 py-3 text-left text-gray-300">Fecha</th>
+                  <th className="px-4 py-3 text-right text-gray-300">Días</th>
+                  <th className="px-4 py-3 text-right text-gray-300">Recibida</th>
+                  <th className="px-4 py-3 text-right text-gray-300">Consumo</th>
+                  <th className="px-4 py-3 text-right text-gray-300">Entregada</th>
+                  <th className="px-4 py-3 text-right text-gray-300">Producción</th>
+                  <th className="px-4 py-3 text-right text-gray-300">Balance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {readings.filter(r => r.received > 0).map((reading, idx, arr) => {
+                  const prev = idx > 0 ? arr[idx - 1] : { received: 0, delivered: 0 };
+                  const consumption = reading.received - prev.received;
+                  const production = reading.delivered - prev.delivered;
+                  const balance = production - consumption;
+
+                  return (
+                    <tr key={reading.date} className="border-b border-white/5 hover:bg-white/5">
+                      <td className="px-4 py-3 text-white">{new Date(reading.date).toLocaleDateString('es-GT')}</td>
+                      <td className="px-4 py-3 text-right text-gray-300">{reading.days}</td>
+                      <td className="px-4 py-3 text-right text-gray-300">{reading.received}</td>
+                      <td className="px-4 py-3 text-right text-blue-400">{consumption}</td>
+                      <td className="px-4 py-3 text-right text-gray-300">{reading.delivered}</td>
+                      <td className="px-4 py-3 text-right text-green-400">{production}</td>
+                      <td className={`px-4 py-3 text-right font-semibold ${balance >= 0 ? 'text-green-400' : 'text-red-400'}`}>
+                        {balance >= 0 ? '+' : ''}{balance}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        {showAddReading && <AddReadingModal onSave={saveReading} onClose={() => setShowAddReading(false)} lastReading={readings[readings.length - 1]} />}
+      </div>
+    );
+
+    // Rates View Component (supports adding a new rate)
+    const RatesView = ({ rates, setRates, editingRate, setEditingRate, showAddRate, setShowAddRate }) => (
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="text-2xl font-bold text-white flex items-center gap-2">
+            <DollarSign className="w-8 h-8 text-green-400" />
+            Tarifas
+          </h2>
+          <button onClick={() => setShowAddRate(true)} className="glass-button px-3 py-2 text-white hover:bg-white/20">
+            <Plus className="w-4 h-4 inline-block mr-2" />
+            Nueva Tarifa
+          </button>
+        </div>
+
+        {rates.map(rate => (
+          <div key={rate.id} className="glass-card p-6">
+            <div className="flex justify-between items-start mb-4">
+              <div>
+                <h3 className="text-xl font-bold text-white">{rate.distributor} - {rate.serviceType}</h3>
+                <p className="text-sm text-gray-400">
+                  Vigencia: {new Date(rate.validFrom).toLocaleDateString('es-GT')} - {new Date(rate.validTo).toLocaleDateString('es-GT')}
+                </p>
+              </div>
+              <button
+                onClick={() => setEditingRate(rate)}
+                className="glass-button p-2 hover:bg-white/20"
+              >
+                <Edit2 className="w-4 h-4 text-white" />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <InfoRow label="Cargo Fijo" value={`Q ${rate.fixedCharge.toFixed(6)}`} />
+              <InfoRow label="Energía Neta" value={`Q ${rate.energyRate.toFixed(6)}/kWh`} />
+              <InfoRow label="Distribución" value={`Q ${rate.distributionRate.toFixed(6)}/kWh`} />
+              <InfoRow label="Potencia" value={`Q ${rate.powerRate.toFixed(6)}/kWh`} />
+              <InfoRow label="Alumbrado Público" value={`${rate.publicLightingPct}%`} />
+              <InfoRow label="IVA" value={`${rate.ivaPct}%`} />
+            </div>
+          </div>
+        ))}
+
+        {editingRate && <EditRateModal rate={editingRate} onSave={async (updated) => {
+          const updatedRates = rates.map(r => r.id === updated.id ? updated : r);
+          setRates(updatedRates);
+          await storage.set('rates', JSON.stringify(updatedRates));
+          setEditingRate(null);
+        }} onClose={() => setEditingRate(null)} />}
+
+        {showAddRate && <AddRateModal onSave={async (newRate) => {
+          // Ensure unique id
+          const id = `rate-${Date.now()}`;
+          const rateWithId = { ...newRate, id };
+          const updatedRates = [...rates, rateWithId];
+          setRates(updatedRates);
+          await storage.set('rates', JSON.stringify(updatedRates));
+          setShowAddRate(false);
+        }} onClose={() => setShowAddRate(false)} />}
+      </div>
+    );
+
+    // Utility Components
+    const StatCard = ({ icon, label, value, subtitle, trend, color }) => (
+      <div className="glass-card p-4">
+        <div className="flex items-start justify-between mb-2">
+          <div className={color}>{icon}</div>
+          {trend && (
+            <div className={trend === 'up' ? 'text-green-400' : 'text-red-400'}>
+              {trend === 'up' ? <TrendingUp className="w-4 h-4" /> : <TrendingDown className="w-4 h-4" />}
+            </div>
+          )}
+        </div>
+        <p className="text-sm text-gray-400 mb-1">{label}</p>
+        <p className="text-2xl font-bold text-white mb-1">{value}</p>
+        {subtitle && <p className="text-xs text-gray-500">{subtitle}</p>}
+      </div>
+    );
+
+    const ProgressBar = ({ label, value, max, color }) => (
+      <div>
+        <div className="flex justify-between text-xs text-gray-400 mb-1">
+          <span>{label}</span>
+          <span>{value} kWh</span>
+        </div>
+        <div className="w-full bg-white/10 rounded-full h-2">
+          <div className={`${color} h-2 rounded-full transition-all duration-500`} style={{ width: `${(value / max) * 100}%` }} />
+        </div>
+      </div>
+    );
+
+    const InfoRow = ({ label, value }) => (
+      <div className="flex justify-between text-sm">
+        <span className="text-gray-400">{label}:</span>
+        <span className="text-white font-semibold">{value}</span>
+      </div>
+    );
+
+    const NavButton = ({ icon, label, active, onClick }) => (
+      <button
+        onClick={onClick}
+        className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap ${
+          active ? 'bg-white/20 text-white' : 'text-gray-400 hover:bg-white/10'
+        }`}
+      >
+        {icon}
+        <span className="font-medium">{label}</span>
+      </button>
+    );
+
+    const AddReadingModal = ({ onSave, onClose, lastReading }) => {
+      const [formData, setFormData] = useState({
+        date: new Date().toISOString().split('T')[0],
+        received: '',
+        delivered: '',
+        days: ''
+      });
+
+      // Auto-calculate days based on lastReading.date and selected date
+      useEffect(() => {
+        if (!lastReading || !formData.date) return;
+        try {
+          const prev = new Date(lastReading.date);
+          const current = new Date(formData.date);
+          const msPerDay = 1000 * 60 * 60 * 24;
+          const diff = Math.round((current - prev) / msPerDay);
+          const daysVal = Math.max(1, diff);
+          if (parseInt(formData.days, 10) !== daysVal) {
+            setFormData(fd => ({ ...fd, days: String(daysVal) }));
+          }
+        } catch (e) {
+          // ignore parsing errors
+        }
+      }, [formData.date, lastReading]);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave({
+          ...formData,
+          received: parseFloat(formData.received),
+          delivered: parseFloat(formData.delivered),
+          days: parseInt(formData.days)
+        });
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold text-white mb-4">Nueva Lectura</h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Fecha de Lectura</label>
+                <input
+                  type="date"
+                  value={formData.date}
+                  onChange={(e) => setFormData({ ...formData, date: e.target.value })}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Lectura Recibida (kWh acumulada)</label>
+                <input
+                  type="number"
+                  value={formData.received}
+                  onChange={(e) => setFormData({ ...formData, received: e.target.value })}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                  placeholder={`Última: ${lastReading?.received || 0}`}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Lectura Entregada (kWh acumulada)</label>
+                <input
+                  type="number"
+                  value={formData.delivered}
+                  onChange={(e) => setFormData({ ...formData, delivered: e.target.value })}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                  placeholder={`Última: ${lastReading?.delivered || 0}`}
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-400 mb-1">Días de Servicio</label>
+                <input
+                  type="number"
+                  value={formData.days}
+                  onChange={(e) => setFormData({ ...formData, days: e.target.value })}
+                  className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                  placeholder="28-32"
+                  required
+                />
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" className="flex-1 bg-gradient-to-r from-green-500 to-emerald-500 text-white px-4 py-2 rounded-lg font-semibold hover:from-green-600 hover:to-emerald-600 flex items-center justify-center gap-2">
+                  <Save className="w-4 h-4" />
+                  Guardar
+                </button>
+                <button type="button" onClick={onClose} className="flex-1 glass-button text-white px-4 py-2 hover:bg-white/20 flex items-center justify-center gap-2">
+                  <X className="w-4 h-4" />
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    };
+
+    const EditRateModal = ({ rate, onSave, onClose }) => {
+      const [formData, setFormData] = useState(rate);
+
+      const handleSubmit = (e) => {
+        e.preventDefault();
+        onSave({
+          ...formData,
+          fixedCharge: parseFloat(formData.fixedCharge),
+          energyRate: parseFloat(formData.energyRate),
+          distributionRate: parseFloat(formData.distributionRate),
+          powerRate: parseFloat(formData.powerRate),
+          publicLightingPct: parseFloat(formData.publicLightingPct),
+          ivaPct: parseFloat(formData.ivaPct)
+        });
+      };
+
+      return (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="glass-card p-6 max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-white mb-4">Editar Tarifa</h3>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Cargo Fijo</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={formData.fixedCharge}
+                    onChange={(e) => setFormData({ ...formData, fixedCharge: e.target.value })}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Energía Neta</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={formData.energyRate}
+                    onChange={(e) => setFormData({ ...formData, energyRate: e.target.value })}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Distribución</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={formData.distributionRate}
+                    onChange={(e) => setFormData({ ...formData, distributionRate: e.target.value })}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Potencia</label>
+                  <input
+                    type="number"
+                    step="0.000001"
+                    value={formData.powerRate}
+                    onChange={(e) => setFormData({ ...formData, powerRate: e.target.value })}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">Alumbrado Público (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={formData.publicLightingPct}
+                    onChange={(e) => setFormData({ ...formData, publicLightingPct: e.target.value })}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-400 mb-1">IVA (%)</label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    value={formData.ivaPct}
+                    onChange={(e) => setFormData({ ...formData, ivaPct: e.target.value })}
+                    className="w-full bg-white/10 border border-white/20 rounded-lg px-3 py-2 text-white"
+                    required
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-2">
+                <button type="submit" className="flex-1 bg-gradient-to-r from-blue-500 to-purple-500 text-white px-4 py-2 rounded-lg font-semibold hover:from-blue-600 hover:to-purple-600 flex items-center justify-center gap-2">
+                  <Save className="w-4 h-4" />
+                  Guardar
+                </button>
+                <button type="button" onClick={onClose} className="flex-1 glass-button text-white px-4 py-2 hover:bg-white/20 flex items-center justify-center gap-2">
+                  <X className="w-4 h-4" />
+                  Cancelar
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      );
+    };
+
+    // Render App
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<SolarEnergyPWA />);
+
+    // Initialize Lucide Icons safely
+    try {
+      if (window.lucide && typeof lucide.createIcons === 'function') {
+        lucide.createIcons();
+      }
+    } catch (e) {
+      console.warn('lucide.createIcons() failed', e);
+    }
+  } catch (err) {
+    console.error('App initialization error:', err);
+  }
+  </script>
+
+  <!-- Service Worker for PWA (registration disabled during development)
+  To re-enable the service worker, remove the surrounding HTML comment. -->
+  <!--
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(registration => console.log('SW registered:', registration))
+          .catch(err => console.log('SW registration failed:', err));
+      });
+    }
+  </script>
+  -->
+</body>
+</html>
