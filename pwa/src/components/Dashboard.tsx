@@ -1,5 +1,5 @@
 import React from 'react'
-import { loadReadings, findActiveTariffForDate, createPreviousQuartersFromActive, loadMeterInfo, loadMeters, loadCurrentMeterId, saveMeters, saveCurrentMeterId, migrateLegacyReadingsToCurrentMeter, loadMigrationInfo, clearMigrationInfo } from '../services/storage'
+import { loadReadings, computeDeltas, findActiveTariffForDate, createPreviousQuartersFromActive, loadMeterInfo, loadMeters, loadCurrentMeterId, saveMeters, saveCurrentMeterId, migrateLegacyReadingsToCurrentMeter, loadMigrationInfo, clearMigrationInfo } from '../services/storage'
 import MeterModal from './MeterModal'
 import ConfirmModal from './ConfirmModal'
 import { showToast } from '../services/toast'
@@ -57,32 +57,34 @@ export default function Dashboard(){
   // compute invoice for the month: prorate fixed charge per month
   // pass accumulated credit as kWh (credits_kWh) since stored credit is energy units
   const invoice = computeInvoiceForPeriod(consumptionMonth, productionMonth, activeTariff, { forUnit: 'month', date: new Date().toISOString(), credits_kWh: creditAccum } as any)
-  const estimatedBill = invoice.total_due_Q
+  // estimatedBill: prefer last delta's invoice (last period) if available, otherwise month invoice
+  let estimatedBill = invoice.total_due_Q
+  let lastDelta: any = null
+  try{
+    const raws = loadReadings()
+    const deltas = computeDeltas(raws || [])
+    if (deltas && deltas.length>0) lastDelta = deltas[deltas.length-1]
+    if (lastDelta){
+      try{
+        const lastTariff = findActiveTariffForDate(lastDelta.date)
+        const lastInv = computeInvoiceForPeriod(Number(lastDelta.consumption||0), Number(lastDelta.production||0), lastTariff, { forUnit: 'period', date: lastDelta.date } as any)
+        if (lastInv && typeof lastInv.total_due_Q === 'number') estimatedBill = lastInv.total_due_Q
+      }catch(e){ /* ignore and fall back */ }
+    }
+  }catch(e){ /* ignore */ }
 
   // compute latest saldo (from deltas) and month accumulated saldo
   let latestSaldo = 0
   let accumulatedSaldo = 0
   try{
     const raws = loadReadings()
-    if (raws && raws.length>0){
-      // compute deltas and get last (most recent) entry
-      const items = [...raws].map(r=>({ ...r, date: new Date(r.date).toISOString() }))
-      items.sort((a,b)=> new Date(a.date).getTime() - new Date(b.date).getTime())
-      const deltas: any[] = []
-      for (let i=0;i<items.length;i++){
-        if (i===0) deltas.push({ ...items[i], consumption: 0, production: 0 })
-        else {
-          const prev = items[i-1]
-          const curr = items[i]
-          deltas.push({ ...curr, consumption: Number(curr.consumption)-Number(prev.consumption), production: Number(curr.production)-Number(prev.production) })
-        }
-      }
+    const deltas = computeDeltas(raws || [])
+    if (deltas && deltas.length>0){
       const latest = deltas[deltas.length-1]
       latestSaldo = (Number(latest.production)||0) - (Number(latest.consumption)||0)
-      // accumulated saldo is sum of all per-period saldos
       accumulatedSaldo = deltas.reduce((acc,cur)=> acc + ((Number(cur.production)||0) - (Number(cur.consumption)||0)), 0)
     }
-  }catch(e){ latestSaldo = 0 }
+  }catch(e){ /* ignore */ }
 
   // Find readings that do not have an active tariff assigned
   let readingsMissingTariff: string[] = []
@@ -133,17 +135,8 @@ export default function Dashboard(){
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm text-gray-300">Crédito Acumulado</h3>
-              <p className="text-2xl mt-2">{currency(creditAccum)}</p>
-            </div>
-            <Zap className="text-yellow-400" size={28} />
-          </div>
-        </div>
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
               <h3 className="text-sm text-gray-300">Consumo del Mes</h3>
-              <p className="text-2xl mt-2">{consumptionMonth.toFixed(2)} kWh</p>
+              <p className="text-2xl mt-2">{(lastDelta ? Number(lastDelta.consumption).toFixed(2) : consumptionMonth.toFixed(2))} kWh</p>
             </div>
             <TrendingDown className="text-red-400" size={28} />
           </div>
@@ -152,7 +145,7 @@ export default function Dashboard(){
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-sm text-gray-300">Producción del Mes</h3>
-              <p className="text-2xl mt-2">{productionMonth.toFixed(2)} kWh</p>
+              <p className="text-2xl mt-2">{(lastDelta ? Number(lastDelta.production).toFixed(2) : productionMonth.toFixed(2))} kWh</p>
             </div>
             <TrendingUp className="text-blue-400" size={28} />
           </div>
