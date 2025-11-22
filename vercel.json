@@ -3,9 +3,9 @@
   "outputDirectory": "pwa/dist",
   "builds": [
     {
-      "src": "pwa/package.json",
+      "src": "package.json",
       "use": "@vercel/static-build",
-      "config": { "distDir": "pwa/dist" }
+      "config": { "distDir": "dist" }
     }
   ],
   "routes": [
