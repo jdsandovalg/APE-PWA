@@ -23,3 +23,6 @@ yarn-error.log*
 
 # Backups
 Respaldo/node_modules/
+
+# Ignore backup folder
+Respaldo/
