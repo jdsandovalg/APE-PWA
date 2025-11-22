@@ -145,22 +145,22 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
       </div>
 
       <nav className="glass-card p-2 mb-4">
-        <div className="flex gap-2 justify-center overflow-x-auto">
-          <button onClick={()=>onNavigate('dashboard')} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10`}>
+        <div className="flex flex-col sm:flex-row gap-2 sm:justify-center overflow-x-auto">
+          <button onClick={()=>onNavigate('dashboard')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 w-full sm:w-auto`}>
             <Home size={16} />
-            <span className="font-medium">Dashboard</span>
+            <span className="font-medium text-sm text-left">Dashboard</span>
           </button>
-          <button onClick={()=>onNavigate('readings')} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10`}>
+          <button onClick={()=>onNavigate('readings')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 w-full sm:w-auto`}>
             <Calendar size={16} />
-            <span className="font-medium">Lecturas</span>
+            <span className="font-medium text-sm text-left">Lecturas</span>
           </button>
-          <button onClick={()=>onNavigate('tariffs')} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10`}>
+          <button onClick={()=>onNavigate('tariffs')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 w-full sm:w-auto`}>
             <DollarSign size={16} />
-            <span className="font-medium">Tarifas</span>
+            <span className="font-medium text-sm text-left">Tarifas</span>
           </button>
-          <button onClick={()=>onNavigate('billing')} className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10`}>
+          <button onClick={()=>onNavigate('billing')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 w-full sm:w-auto`}>
             <Hammer size={16} />
-            <span className="font-medium">Facturación</span>
+            <span className="font-medium text-sm text-left">Facturación</span>
           </button>
         </div>
       </nav>
