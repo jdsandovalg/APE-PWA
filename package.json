@@ -4,7 +4,8 @@
   "version": "0.0.0",
   "scripts": {
     "install": "npm --prefix pwa install",
-    "build": "npm --prefix pwa run build"
+    "build": "npm --prefix pwa run build && rm -rf dist && cp -R pwa/dist dist",
+    "vercel-build": "npm --prefix pwa run build && rm -rf dist && cp -R pwa/dist dist"
   },
   "engines": {
     "node": ">=18"
