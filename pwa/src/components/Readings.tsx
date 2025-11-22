@@ -5,7 +5,7 @@ import AddReadingModal from './AddReadingModal'
 import ConfirmModal from './ConfirmModal'
 import { showToast } from '../services/toast'
 import { parseCSV, toNumber } from '../services/csv'
-import { UploadCloud, DownloadCloud } from 'lucide-react'
+import { UploadCloud, DownloadCloud, Edit2 } from 'lucide-react'
 
 type Reading = { date:string, consumption:number, production:number, credit?:number }
 
@@ -16,6 +16,8 @@ export default function Readings(){
   const meterInfo = loadMeterInfo()
   const [showAddModal, setShowAddModal] = useState(false)
   const [showConfirmClear, setShowConfirmClear] = useState(false)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editingInitial, setEditingInitial] = useState<{date:string, consumption:number, production:number} | null>(null)
 
   useEffect(()=>{ setData(loadReadings()) },[])
 
@@ -110,9 +112,9 @@ export default function Readings(){
 
   return (
     <section>
-      <div className="mb-4 text-sm text-gray-300">Medidor activo: <strong className="text-white">{currentMeterId}</strong> — {meterInfo.propietaria}</div>
-      <div className="flex gap-2 mb-4 items-center justify-center flex-wrap">
-          <button className="glass-button flex items-center gap-2 px-3 py-2" onClick={()=> setShowAddModal(true)}>Agregar lectura</button>
+      <div className="mb-4 text-xs text-gray-300">Medidor activo: <strong className="text-white">{currentMeterId}</strong> — {meterInfo.propietaria}</div>
+        <div className="flex gap-2 mb-4 items-center justify-center flex-wrap">
+          <button className="glass-button flex items-center gap-2 px-3 py-2" onClick={()=> { setEditingIndex(null); setEditingInitial(null); setShowAddModal(true) }}>Agregar lectura</button>
         <label className="glass-button cursor-pointer flex items-center gap-2 px-3 py-2">
           <UploadCloud size={16} />
           Importar CSV
@@ -123,33 +125,33 @@ export default function Readings(){
       </div>
       {message && <div className="w-full text-center mb-4 text-sm text-gray-300">{message}</div>}
 
-      <AddReadingModal open={showAddModal} onClose={()=> setShowAddModal(false)} onSaved={()=>{ setData(loadReadings()); setMessage('Lectura agregada') }} />
+      <AddReadingModal open={showAddModal} onClose={()=> setShowAddModal(false)} onSaved={()=>{ setData(loadReadings()); setMessage('Lectura agregada') }} initial={editingInitial} editingIndex={editingIndex} />
       <ConfirmModal open={showConfirmClear} title="Confirmar limpieza" message="¿Desea borrar todas las lecturas? Esta acción no se puede deshacer." onCancel={()=> setShowConfirmClear(false)} onConfirm={doClear} cancelText="Cancelar" confirmText="Borrar" />
 
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
+        <table className="min-w-full text-left text-xs">
           <thead>
             <tr className="text-gray-300">
               <th>
-                <div className="glass-button px-3 py-1 w-full text-center text-white">Fecha</div>
+                <div className="glass-button px-2 py-1 w-full text-center text-white text-xs">Fecha</div>
               </th>
               <th>
-                <div className="glass-button px-3 py-1 w-full text-center text-white">Lectura Recibida (raw)</div>
+                <div className="glass-button px-2 py-1 w-full text-center text-white text-xs">Lectura Recibida (raw)</div>
               </th>
               <th>
-                <div className="glass-button px-3 py-1 w-full text-center text-white">Recibida kWh (∆)</div>
+                <div className="glass-button px-2 py-1 w-full text-center text-white text-xs">Recibida kWh (∆)</div>
               </th>
               <th>
-                <div className="glass-button px-3 py-1 w-full text-center text-white">Lectura Entregada (raw)</div>
+                <div className="glass-button px-2 py-1 w-full text-center text-white text-xs">Lectura Entregada (raw)</div>
               </th>
               <th>
-                <div className="glass-button px-3 py-1 w-full text-center text-white">Entregada kWh (∆)</div>
+                <div className="glass-button px-2 py-1 w-full text-center text-white text-xs">Entregada kWh (∆)</div>
               </th>
               <th>
-                <div className="glass-button px-3 py-1 w-full text-center text-white">Saldo (kWh)</div>
+                <div className="glass-button px-2 py-1 w-full text-center text-white text-xs">Saldo (kWh)</div>
               </th>
               <th>
-                <div className="glass-button px-3 py-1 w-full text-center text-white">Saldo Acumulado (kWh)</div>
+                <div className="glass-button px-2 py-1 w-full text-center text-white text-xs">Saldo Acumulado (kWh)</div>
               </th>
             </tr>
           </thead>
@@ -159,14 +161,21 @@ export default function Readings(){
               const d = deltaMap.get(iso) || { consumption: 0, production: 0, date: r.date }
               const saldo = (Number(d.production) || 0) - (Number(d.consumption) || 0)
               return (
-                <tr key={idx} className="border-b border-gray-700">
-                  <td className="py-2">{new Date(r.date).toLocaleDateString()}</td>
-                  <td className="py-2 text-right">{Number(r.consumption || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                  <td className="py-2 text-right">{Number(d.consumption || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                  <td className="py-2 text-right">{Number(r.production || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                  <td className="py-2 text-right">{Number(d.production || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                  <td className="py-2 text-right">{Number(saldo || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
-                  <td className="py-2 text-right">{Number(cumulativeMap.get(iso) || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                <tr key={idx} className="border-b border-gray-700 text-xs">
+                  <td className="py-1">{new Date(r.date).toLocaleDateString()}</td>
+                  <td className="py-1 text-right">{Number(r.consumption || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                  <td className="py-1 text-right">{Number(d.consumption || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                  <td className="py-1 text-right">{Number(r.production || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                  <td className="py-1 text-right">{Number(d.production || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                  <td className="py-1 text-right">{Number(saldo || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                  <td className="py-1 text-right">{Number(cumulativeMap.get(iso) || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
+                  <td className="py-1 text-right">
+                    <button className="glass-button px-2 py-1 text-xs flex items-center gap-1" onClick={()=>{
+                      setEditingIndex(idx)
+                      setEditingInitial({ date: r.date, consumption: Number(r.consumption||0), production: Number(r.production||0) })
+                      setShowAddModal(true)
+                    }}><Edit2 size={14} /></button>
+                  </td>
                 </tr>
               )
             })}

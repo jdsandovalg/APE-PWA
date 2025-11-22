@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
-import { loadTariffs, saveTariffs, TariffSet, TariffDetail, TariffHeader } from '../services/storage'
-import { Save, Trash, PlusCircle, Upload } from 'lucide-react'
+import { loadTariffs, saveTariffs, TariffSet, TariffDetail, TariffHeader, loadCompanies } from '../services/storage'
+import { Save, Trash, PlusCircle, Upload, Edit } from 'lucide-react'
 import ConfirmModal from './ConfirmModal'
 import { showToast } from '../services/toast'
 
@@ -17,8 +17,13 @@ function makeId(company:string,segment:string,from:string,to:string){
 export default function Tariffs(){
   const [items, setItems] = useState<TariffSet[]>([])
   const [selectedIdx, setSelectedIdx] = useState<number | null>(null)
+  const [showEditModal, setShowEditModal] = useState(false)
+  const [modalForm, setModalForm] = useState<TariffSet | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null)
+
+  // when nothing selected, let the list occupy the full grid width (avoid cramped layout)
+  const leftCardSpan = selectedIdx === null ? 'md:col-span-3' : 'md:col-span-1'
 
   useEffect(()=>{
     const t = loadTariffs()
@@ -99,7 +104,7 @@ export default function Tariffs(){
     <>
     <section>
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="card md:col-span-1 col-span-1 w-full">
+        <div className={`card ${leftCardSpan} col-span-1 w-full`}>
           <div className="flex items-center justify-between">
             <h3 className="text-lg">Trimestres / Tarifas</h3>
             <div className="flex gap-2">
@@ -117,7 +122,7 @@ export default function Tariffs(){
                     <div className="text-xs text-gray-400">{it.header.period.from} → {it.header.period.to}</div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <button className="btn-ghost" onClick={()=>setSelectedIdx(idx)}>Editar</button>
+                    <button title="Editar" className="btn-ghost" onClick={()=>{ setSelectedIdx(idx); setModalForm(items[idx]); setShowEditModal(true) }}><Edit size={16} /></button>
                     <button aria-label={`Eliminar tarifa ${it.header.id}`} className="btn-ghost text-red-400 flex items-center justify-center p-1" onClick={()=>requestRemoveAt(idx)} title="Eliminar"><Trash size={14} /></button>
                   </div>
                 </div>
@@ -126,70 +131,97 @@ export default function Tariffs(){
           </div>
         </div>
 
-        <div className="card md:col-span-2 col-span-1 w-full">
-          {selectedIdx===null ? (
-            <div className="text-gray-300">Selecciona un trimestre a la izquierda para editar sus valores. Puedes importar el archivo extraído o crear uno nuevo.</div>
-          ) : (
+        {selectedIdx !== null && (
+          <div className="card md:col-span-2 col-span-1 w-full">
             <div>
               <h3 className="text-lg">Editar Tarifa — {items[selectedIdx].header.id}</h3>
-              <div className="grid grid-cols-2 gap-4 mt-4">
-                <div>
-                  <label className="block text-sm text-gray-300">Empresa</label>
-                  <input value={items[selectedIdx].header.company} onChange={e=> updateSelected({ header: { company: e.target.value } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-300">Segmento</label>
-                  <input value={items[selectedIdx].header.segment} onChange={e=> updateSelected({ header: { segment: e.target.value } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-300">Periodo desde</label>
-                  <input type="date" value={items[selectedIdx].header.period.from} onChange={e=> updateSelected({ header: { period: { ...items[selectedIdx].header.period, from: e.target.value } } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-300">Periodo hasta</label>
-                  <input type="date" value={items[selectedIdx].header.period.to} onChange={e=> updateSelected({ header: { period: { ...items[selectedIdx].header.period, to: e.target.value } } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
-                </div>
-              </div>
-
-              <hr className="my-4 border-gray-700" />
-
-              <h4 className="font-medium">Detalles de tarifas (Q / %) </h4>
-              <div className="grid grid-cols-2 gap-4 mt-3">
-                <div>
-                  <label className="block text-sm text-gray-300">Cargo fijo (Q)</label>
-                  <input type="number" step="0.000001" value={items[selectedIdx].rates.fixedCharge_Q} onChange={e=> updateSelected({ rates: { fixedCharge_Q: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-300">Energía (Q/kWh)</label>
-                  <input type="number" step="0.000001" value={items[selectedIdx].rates.energy_Q_per_kWh} onChange={e=> updateSelected({ rates: { energy_Q_per_kWh: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-300">Distribución (Q/kWh)</label>
-                  <input type="number" step="0.000001" value={items[selectedIdx].rates.distribution_Q_per_kWh} onChange={e=> updateSelected({ rates: { distribution_Q_per_kWh: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-300">Potencia (Q/kWh)</label>
-                  <input type="number" step="0.000001" value={items[selectedIdx].rates.potencia_Q_per_kWh} onChange={e=> updateSelected({ rates: { potencia_Q_per_kWh: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-300">Contribución A.P. (%)</label>
-                  <input type="number" step="0.01" value={items[selectedIdx].rates.contrib_percent} onChange={e=> updateSelected({ rates: { contrib_percent: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
-                </div>
-                <div>
-                  <label className="block text-sm text-gray-300">IVA (%)</label>
-                  <input type="number" step="0.01" value={items[selectedIdx].rates.iva_percent} onChange={e=> updateSelected({ rates: { iva_percent: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
-                </div>
-              </div>
-
-              <div className="mt-4 flex gap-2">
-                <button className="btn-primary flex items-center gap-2" onClick={saveChanges}><Save size={14} /> Guardar cambios</button>
-                <button className="btn-ghost text-red-400 flex items-center gap-2" onClick={()=> requestRemoveAt(selectedIdx!)}><Trash size={14} /> Eliminar</button>
+              <div className="mt-2">
+                <div className="font-medium">{items[selectedIdx].header.company} · {items[selectedIdx].header.segment}</div>
+                <div className="text-xs text-gray-400">{items[selectedIdx].header.period.from} → {items[selectedIdx].header.period.to}</div>
               </div>
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
     </section>
+      {showEditModal && modalForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={()=>setShowEditModal(false)} />
+          <div className="glass-card max-w-md sm:max-w-lg w-full p-6 z-10 text-white">
+            <h3 className="text-lg">Editar Tarifa — {modalForm.header.id}</h3>
+            <div className="grid grid-cols-1 gap-3 mt-3">
+              <div>
+                <label className="block text-sm text-gray-300">Empresa</label>
+                <select className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" value={modalForm.header.company} onChange={e=> {
+                  const val = e.target.value
+                  const comp = loadCompanies().find(c=> c.id === val)
+                  setModalForm({ ...modalForm, header: { ...modalForm.header, company: val, companyCode: comp?.code || modalForm.header.companyCode } })
+                }}>
+                  {loadCompanies().map(c=> (<option key={c.id} value={c.id}>{c.id} — {c.name}{c.code? ` (${c.code})`:''}</option>))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300">Segmento</label>
+                <input value={modalForm.header.segment} onChange={e=> setModalForm({ ...modalForm, header: { ...modalForm.header, segment: e.target.value } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300">Periodo desde</label>
+                <input type="date" value={modalForm.header.period.from} onChange={e=> setModalForm({ ...modalForm, header: { ...modalForm.header, period: { ...modalForm.header.period, from: e.target.value } } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300">Periodo hasta</label>
+                <input type="date" value={modalForm.header.period.to} onChange={e=> setModalForm({ ...modalForm, header: { ...modalForm.header, period: { ...modalForm.header.period, to: e.target.value } } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+              </div>
+            </div>
+
+            <hr className="my-4 border-gray-700" />
+
+            <h4 className="font-medium">Detalles de tarifas (Q / %)</h4>
+              <div className="grid grid-cols-1 gap-3 mt-3">
+              <div>
+                <label className="block text-sm text-gray-300">Cargo fijo (Q)</label>
+                <select className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" value={modalForm.header.company} onChange={e=> {
+                  const val = e.target.value
+                  const comp = loadCompanies().find(c=> c.id === val)
+                  setModalForm({ ...modalForm, header: { ...modalForm.header, company: val, companyCode: comp?.code || modalForm.header.companyCode } })
+                }}>
+                  {loadCompanies().map(c=> (<option key={c.id} value={c.id}>{c.id} — {c.name}{c.code? ` (${c.code})`:''}</option>))}
+                </select>
+                <label className="block text-sm text-gray-300">Energía (Q/kWh)</label>
+                <input type="number" step="0.000001" value={modalForm.rates.energy_Q_per_kWh} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, energy_Q_per_kWh: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300">Distribución (Q/kWh)</label>
+                <input type="number" step="0.000001" value={modalForm.rates.distribution_Q_per_kWh} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, distribution_Q_per_kWh: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300">Potencia (Q/kWh)</label>
+                <input type="number" step="0.000001" value={modalForm.rates.potencia_Q_per_kWh} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, potencia_Q_per_kWh: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300">Contribución A.P. (%)</label>
+                <input type="number" step="0.01" value={modalForm.rates.contrib_percent} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, contrib_percent: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-300">IVA (%)</label>
+                <input type="number" step="0.01" value={modalForm.rates.iva_percent} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, iva_percent: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+              </div>
+            </div>
+
+            <div className="mt-4 flex justify-end gap-2">
+              <button className="glass-button px-3 py-2" onClick={()=> setShowEditModal(false)}>Cancelar</button>
+              <button className="glass-button px-3 py-2 bg-green-600 text-white" onClick={()=>{
+                // persist modalForm back into items
+                if (!modalForm) return
+                const next = items.map(it => it.header.id === modalForm.header.id ? modalForm : it)
+                persist(next)
+                setShowEditModal(false)
+                setModalForm(null)
+              }}>Guardar</button>
+            </div>
+          </div>
+        </div>
+      )}
       {showDeleteConfirm && (
         <ConfirmModal
           open={showDeleteConfirm}

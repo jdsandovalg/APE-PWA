@@ -91,9 +91,9 @@ export default function BillingTest(){
             {resultsByMonth.length===0 && <div className="text-sm text-gray-400 mt-2">No hay lecturas.</div>}
             {resultsByMonth.length>0 && (resultsByMonth[0].date ? (
               <div>
-                <h4 className="font-medium mb-3 text-center text-sm">Tabla de facturación por periodo (delta)</h4>
+                <h4 className="font-medium mb-3 text-center text-xs">Tabla de facturación por periodo (delta)</h4>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full text-left text-sm table-fixed" style={{ borderCollapse: 'collapse' }}>
+                  <table className="min-w-full text-left text-xs table-fixed" style={{ borderCollapse: 'collapse' }}>
                     <colgroup>
                       <col style={{ width: '12%' }} />
                       <col style={{ width: '10%' }} />
@@ -107,8 +107,8 @@ export default function BillingTest(){
                     </colgroup>
                     <thead>
                       <tr>
-                        <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm sticky top-0 text-center text-white text-xs">Fecha</th>
-                        <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm text-center text-white text-xs">Consumo kWh</th>
+                        <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm sticky top-0 text-center text-white text-2xs">Fecha</th>
+                        <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm text-center text-white text-2xs">Consumo kWh</th>
                         <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm text-center text-white text-xs">Cargo fijo</th>
                         <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm text-center text-white text-xs">Energía neta</th>
                         <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm text-center text-white text-xs">Distribución</th>
@@ -120,37 +120,37 @@ export default function BillingTest(){
                     </thead>
                     <tbody>
                       {resultsByMonth.map((r:any, idx:number)=> (
-                        <tr key={idx} className={`border-t border-white/5 ${idx % 2 === 0 ? 'bg-white/2' : ''}`}>
-                          <td className="px-2 py-2 border border-white/10 align-top whitespace-nowrap">{r.date}</td>
+                        <tr key={idx} className={`border-t border-white/5 ${idx % 2 === 0 ? 'bg-white/2' : ''} text-xs`}>
+                          <td className="px-1 py-1 border border-white/10 align-top whitespace-nowrap">{r.date}</td>
                           <td className="px-2 py-2 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-xs text-gray-400">kWh</div>
-                            <div className="font-medium">{Number(r.consumption_kWh || 0).toLocaleString()}</div>
+                            <div className="text-2xs text-gray-400">kWh</div>
+                            <div className="font-medium text-xs">{Number(r.consumption_kWh || 0).toLocaleString()}</div>
                           </td>
-                          <td className="px-2 py-2 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-xs text-gray-400">{r.invoice?.tariff?.rates?.fixedCharge_Q ? `${Number(r.invoice.tariff.rates.fixedCharge_Q).toFixed(4)} Q` : '-'}</div>
-                            <div className="font-medium">{currency(Number(r.invoice?.fixed_charge_Q || 0))}</div>
+                          <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
+                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.fixedCharge_Q ? `${Number(r.invoice.tariff.rates.fixedCharge_Q).toFixed(4)} Q` : '-'}</div>
+                            <div className="font-medium text-xs">{currency(Number(r.invoice?.fixed_charge_Q || 0))}</div>
                           </td>
-                          <td className="px-2 py-2 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-xs text-gray-400">{r.invoice?.tariff?.rates?.energy_Q_per_kWh ? `${Number(r.invoice.tariff.rates.energy_Q_per_kWh).toFixed(6)} Q/kWh` : '-'}</div>
-                            <div className="font-medium">{currency(Number(r.invoice?.energy_charge_Q || 0))}</div>
+                          <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
+                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.energy_Q_per_kWh ? `${Number(r.invoice.tariff.rates.energy_Q_per_kWh).toFixed(6)} Q/kWh` : '-'}</div>
+                            <div className="font-medium text-xs">{currency(Number(r.invoice?.energy_charge_Q || 0))}</div>
                           </td>
-                          <td className="px-2 py-2 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-xs text-gray-400">{r.invoice?.tariff?.rates?.distribution_Q_per_kWh ? `${Number(r.invoice.tariff.rates.distribution_Q_per_kWh).toFixed(6)} Q/kWh` : '-'}</div>
-                            <div className="font-medium">{currency(Number(r.invoice?.distribution_charge_Q || 0))}</div>
+                          <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
+                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.distribution_Q_per_kWh ? `${Number(r.invoice.tariff.rates.distribution_Q_per_kWh).toFixed(6)} Q/kWh` : '-'}</div>
+                            <div className="font-medium text-xs">{currency(Number(r.invoice?.distribution_charge_Q || 0))}</div>
                           </td>
-                          <td className="px-2 py-2 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-xs text-gray-400">{r.invoice?.tariff?.rates?.potencia_Q_per_kWh ? `${Number(r.invoice.tariff.rates.potencia_Q_per_kWh).toFixed(6)} Q/kWh` : '-'}</div>
-                            <div className="font-medium">{currency(Number(r.invoice?.potencia_charge_Q || 0))}</div>
+                          <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
+                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.potencia_Q_per_kWh ? `${Number(r.invoice.tariff.rates.potencia_Q_per_kWh).toFixed(6)} Q/kWh` : '-'}</div>
+                            <div className="font-medium text-xs">{currency(Number(r.invoice?.potencia_charge_Q || 0))}</div>
                           </td>
-                          <td className="px-2 py-2 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-xs text-gray-400">{r.invoice?.tariff?.rates?.contrib_percent != null ? `${Number(r.invoice.tariff.rates.contrib_percent)}%` : '-'}</div>
-                            <div className="font-medium">{currency(Number(r.invoice?.contrib_amount_Q || 0))}</div>
+                          <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
+                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.contrib_percent != null ? `${Number(r.invoice.tariff.rates.contrib_percent)}%` : '-'}</div>
+                            <div className="font-medium text-xs">{currency(Number(r.invoice?.contrib_amount_Q || 0))}</div>
                           </td>
-                          <td className="px-2 py-2 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-xs text-gray-400">{r.invoice?.tariff?.rates?.iva_percent != null ? `${Number(r.invoice.tariff.rates.iva_percent)}%` : '12%'}</div>
-                            <div className="font-medium">{currency(Number(r.invoice?.iva_amount_Q || 0))}</div>
+                          <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
+                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.iva_percent != null ? `${Number(r.invoice.tariff.rates.iva_percent)}%` : '12%'}</div>
+                            <div className="font-medium text-xs">{currency(Number(r.invoice?.iva_amount_Q || 0))}</div>
                           </td>
-                          <td className="px-2 py-2 border border-white/10 text-right font-semibold align-top whitespace-nowrap">{currency(Number(r.invoice?.total_due_Q || 0))}</td>
+                          <td className="px-1 py-1 border border-white/10 text-right font-semibold align-top whitespace-nowrap text-sm">{currency(Number(r.invoice?.total_due_Q || 0))}</td>
                         </tr>
                       ))}
                     </tbody>

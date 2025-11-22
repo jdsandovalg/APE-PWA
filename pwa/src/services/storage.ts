@@ -91,6 +91,7 @@ export type TariffDetail = {
 export type TariffHeader = {
   id: string,
   company: string,
+  companyCode?: string,
   segment: string,
   period: { from: string, to: string },
   effectiveAt?: string,
@@ -99,6 +100,35 @@ export type TariffHeader = {
 }
 
 export type TariffSet = { header: TariffHeader, rates: TariffDetail }
+
+// Companies master for tariffs
+export type CompanyInfo = {
+  id: string,
+  name: string,
+  code?: string
+}
+
+const COMPANIES_KEY = 'apenergia:companies'
+
+export function loadCompanies(): CompanyInfo[]{
+  try{
+    const raw = localStorage.getItem(COMPANIES_KEY)
+    if (!raw) {
+      // seed common companies used by tariffs so UI has sensible defaults
+      const seed: CompanyInfo[] = [
+        { id: 'EEGSA', name: 'EEGSA', code: 'EEGSA' },
+        { id: 'BTSA', name: 'BTSA', code: 'BTSA' }
+      ]
+      try{ localStorage.setItem(COMPANIES_KEY, JSON.stringify(seed)) }catch(e){}
+      return seed
+    }
+    return JSON.parse(raw)
+  }catch(e){ return [] }
+}
+
+export function saveCompanies(list: CompanyInfo[]){
+  try{ localStorage.setItem(COMPANIES_KEY, JSON.stringify(list)) }catch(e){}
+}
 
 // Load tariffs: support legacy single-object { rate: number } and arrays of TariffSet
 export function loadTariffs(): TariffSet[]{
@@ -138,6 +168,16 @@ export function loadTariffs(): TariffSet[]{
         const bf = b?.header?.period?.from || ''
         return new Date(bf).getTime() - new Date(af).getTime()
       })
+      // ensure companyCode is present by consulting companies master
+      try{
+        const comps = loadCompanies()
+        parsed.forEach((t: TariffSet)=>{
+          if (!t.header.companyCode){
+            const found = comps.find(c=> c.id === t.header.company)
+            if (found && found.code) t.header.companyCode = found.code
+          }
+        })
+      }catch(e){}
       return parsed
     }
     if (parsed && typeof parsed === 'object'){
@@ -150,7 +190,10 @@ export function loadTariffs(): TariffSet[]{
         return [t]
       }
       // if it looks like a TariffSet object (single), wrap it
-      if (parsed.header && parsed.rates) return [parsed]
+      if (parsed.header && parsed.rates){
+        try{ const comps = loadCompanies(); const found = comps.find(c=> c.id === parsed.header.company); if (found && found.code) parsed.header.companyCode = parsed.header.companyCode || found.code }catch(e){}
+        return [parsed]
+      }
     }
     return []
   }catch(e){ return [] }
@@ -288,14 +331,22 @@ export function loadMeters(): Record<string, MeterInfo>{
     if (!raw){
       const defId = DEFAULT_METER.contador
       const map: Record<string, MeterInfo> = {}
-      map[defId] = DEFAULT_METER
+      // prefer distribuidora from companies master if available
+      let distrib = DEFAULT_METER.distribuidora
+      try{ const comps = loadCompanies(); if (comps && comps.length>0) distrib = comps[0].id }catch(e){}
+      const seeded: MeterInfo = { ...DEFAULT_METER, distribuidora: distrib }
+      map[defId] = seeded
       localStorage.setItem(METERS_KEY, JSON.stringify(map))
       localStorage.setItem(CURRENT_METER_KEY, defId)
       return map
     }
     const parsed = JSON.parse(raw) as Record<string, MeterInfo>
     // ensure default exists
-    if (!parsed[DEFAULT_METER.contador]) parsed[DEFAULT_METER.contador] = DEFAULT_METER
+    if (!parsed[DEFAULT_METER.contador]){
+      let distrib = DEFAULT_METER.distribuidora
+      try{ const comps = loadCompanies(); if (comps && comps.length>0) distrib = comps[0].id }catch(e){}
+      parsed[DEFAULT_METER.contador] = { ...DEFAULT_METER, distribuidora: distrib }
+    }
     return parsed
   }catch(e){ return { [DEFAULT_METER.contador]: DEFAULT_METER } }
 }

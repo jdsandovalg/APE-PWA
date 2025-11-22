@@ -8,6 +8,8 @@ type Props = {
   onSaved: ()=>void
 }
 
+type InitialReading = { date: string, consumption: number | string, production: number | string }
+
 type FormState = {
   date: string,
   consumption: string,
@@ -15,16 +17,21 @@ type FormState = {
   days: number
 }
 
-export default function AddReadingModal({ open, onClose, onSaved }: Props){
+export default function AddReadingModal({ open, onClose, onSaved, initial, editingIndex }: Props & { initial?: InitialReading | null, editingIndex?: number | null }){
   const [form, setForm] = React.useState<FormState>({ date: new Date().toISOString().split('T')[0], consumption: '', production: '', days: 0 })
 
   React.useEffect(()=>{
-    // reset when opened
+    // reset when opened; if `initial` is provided, load it for editing
     if (open){
-      setForm({ date: new Date().toISOString().split('T')[0], consumption: '', production: '', days: 0 })
-      computeDays(new Date().toISOString().split('T')[0])
+      if (initial){
+        setForm({ date: new Date(initial.date).toISOString().split('T')[0], consumption: String(initial.consumption || ''), production: String(initial.production || ''), days: 0 })
+        computeDays(new Date(initial.date).toISOString().split('T')[0])
+      } else {
+        setForm({ date: new Date().toISOString().split('T')[0], consumption: '', production: '', days: 0 })
+        computeDays(new Date().toISOString().split('T')[0])
+      }
     }
-  }, [open])
+  }, [open, initial])
 
   function update<K extends keyof FormState>(k: K, v: FormState[K]){
     setForm(prev=> ({ ...prev, [k]: v }))
@@ -62,10 +69,17 @@ export default function AddReadingModal({ open, onClose, onSaved }: Props){
     const reading = { date: new Date(form.date).toISOString(), consumption, production }
     try{
       const existing = loadReadings()
-      // prepend new reading so it's treated as most recent
-      const merged = [reading, ...existing]
-      saveReadings(merged)
-      showToast('Lectura guardada', 'success')
+      if (typeof editingIndex === 'number' && editingIndex >= 0 && editingIndex < existing.length){
+        // replace the reading at the given index
+        existing[editingIndex] = reading
+        saveReadings(existing)
+        showToast('Lectura actualizada', 'success')
+      } else {
+        // prepend new reading so it's treated as most recent
+        const merged = [reading, ...existing]
+        saveReadings(merged)
+        showToast('Lectura guardada', 'success')
+      }
       onSaved()
       onClose()
     }catch(e){
@@ -79,7 +93,7 @@ export default function AddReadingModal({ open, onClose, onSaved }: Props){
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="glass-card max-w-md w-full p-6 z-10 text-white">
+      <div className="glass-card max-w-md sm:max-w-lg w-full p-6 z-10 text-white">
         <h3 className="text-lg font-semibold mb-3">Agregar lectura manual</h3>
         <div className="grid grid-cols-1 gap-3">
           <label className="text-sm text-white">Fecha

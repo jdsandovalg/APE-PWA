@@ -44,7 +44,13 @@ function exportAll(){
         migration,
         localStorage: rawLocal
       }
-      downloadJSON(payload, `apenergia-export-${new Date().toISOString().split('T')[0]}.json`)
+      // filename: use correlativo + contador + date (YYYY-MM-DD) when available
+      const mi = meter_info || { correlativo: '', contador: '' }
+      const safeCorrel = String(mi.correlativo || '').replace(/[^0-9A-Za-z-_]/g, '')
+      const safeCont = String(mi.contador || '').replace(/[^0-9A-Za-z-_]/g, '')
+      const today = new Date().toISOString().split('T')[0]
+      const filename = (safeCorrel || safeCont) ? `${safeCorrel}_${safeCont}-${today}.json` : `apenergia-export-${today}.json`
+      downloadJSON(payload, filename)
       showToast('Exportación completa: descargando archivo', 'success')
   }catch(e){ console.error('exportAll failed', e) }
 }

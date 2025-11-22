@@ -1,7 +1,8 @@
 import React from 'react'
-import { loadReadings, computeDeltas, findActiveTariffForDate, createPreviousQuartersFromActive, loadMeterInfo, loadMeters, loadCurrentMeterId, saveMeters, saveCurrentMeterId, migrateLegacyReadingsToCurrentMeter, loadMigrationInfo, clearMigrationInfo } from '../services/storage'
+import { loadReadings, computeDeltas, findActiveTariffForDate, createPreviousQuartersFromActive, loadMeterInfo, loadMeters, loadCurrentMeterId, saveMeters, saveCurrentMeterId, migrateLegacyReadingsToCurrentMeter, loadMigrationInfo, clearMigrationInfo, loadCompanies } from '../services/storage'
 import MeterModal from './MeterModal'
 import ConfirmModal from './ConfirmModal'
+import CompaniesModal from './CompaniesModal'
 import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
 import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react'
@@ -20,6 +21,7 @@ export default function Dashboard(){
   const [createQuartersCount, setCreateQuartersCount] = React.useState<number>(2)
   const [showMigrateConfirm, setShowMigrateConfirm] = React.useState(false)
   const [pendingCreateQuarters, setPendingCreateQuarters] = React.useState<number | null>(null)
+  const [showCompaniesModal, setShowCompaniesModal] = React.useState(false)
 
   // Run one-time migration automatically when Dashboard mounts, if legacy data exists.
   React.useEffect(()=>{
@@ -132,6 +134,40 @@ export default function Dashboard(){
   return (
     <section>
       <div className="grid grid-cards gap-4 sm:grid-cols-1 md:grid-cols-2">
+        {/* Buttons to manage meter info: create new or update existing */}
+        <div className="card min-h-28">
+          <div className="flex items-center justify-between w-full">
+            <div className="pr-4">
+              <h3 className="text-xs text-gray-300">Medidor / Información</h3>
+              <div className="mt-2 text-xs text-gray-200">Contador: <strong>{meterInfo.contador}</strong> · Correlativo: <strong>{meterInfo.correlativo}</strong></div>
+            </div>
+            <div className="ml-4 flex flex-col gap-2 items-end">
+              <button className="glass-button px-2 py-1 text-xs" onClick={()=>{
+                // open modal in create mode (empty form); use companies master for default distribuidora
+                let defaultDistrib = 'EEGSA'
+                try{ const comps = loadCompanies(); if (comps && comps.length>0) defaultDistrib = comps[0].id }catch(e){}
+                setModalInitialMeter({ contador: '', correlativo: '', propietaria: '', nit: '', distribuidora: defaultDistrib, tipo_servicio: '', sistema: '' })
+                setShowMeterModal(true)
+              }}>Crear nuevo contador</button>
+              <button className="glass-button px-2 py-1 text-xs" onClick={()=>{
+                // open modal in edit mode but make PK read-only
+                setModalInitialMeter(meterInfo)
+                setShowMeterModal(true)
+              }}>Actualizar información</button>
+            </div>
+          </div>
+        </div>
+        <div className="card min-h-28">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xs text-gray-300">Maestro Tarifas</h3>
+              <p className="text-xs text-gray-400 mt-1">Gestiona empresas y códigos de tarifa</p>
+            </div>
+            <div>
+              <button className="glass-button px-2 py-1 text-xs" onClick={()=> setShowCompaniesModal(true)}>Empresas / Códigos</button>
+            </div>
+          </div>
+        </div>
         {/* meter info moved to header (Navbar) to appear under the title */}
         <div className="card">
           <div className="flex items-center justify-between">
@@ -151,6 +187,7 @@ export default function Dashboard(){
             <TrendingUp className="text-blue-400" size={28} />
           </div>
         </div>
+        
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
@@ -276,20 +313,39 @@ export default function Dashboard(){
             <MeterModal
               open={showMeterModal}
               initial={modalInitialMeter || meterInfo}
+              readOnlyPK={!!(modalInitialMeter && modalInitialMeter.contador)}
               onClose={()=>{ setShowMeterModal(false); setModalInitialMeter(null) }}
               onSave={(m)=>{
-                // update meters map and set current meter
+                // Determine if creating new (contador empty previously) or updating existing
                 const mm = loadMeters()
-                mm[m.contador] = m
-                saveMeters(mm)
-                saveCurrentMeterId(m.contador)
-                setMetersMap(mm)
-                setMeterInfo(m)
+                const creating = !(modalInitialMeter && modalInitialMeter.contador)
+                if (creating){
+                  // enforce PK must not already exist
+                  if (mm[m.contador]){ showToast('El contador ya existe', 'error'); return }
+                  mm[m.contador] = m
+                  saveMeters(mm)
+                  saveCurrentMeterId(m.contador)
+                  setMetersMap(mm)
+                  setMeterInfo(m)
+                  showToast('Medidor creado y seleccionado', 'success')
+                } else {
+                  // update non-PK fields only
+                  const curId = loadCurrentMeterId()
+                  const existing = mm[curId] || {}
+                  const updated = { ...existing, propietaria: m.propietaria, nit: m.nit, distribuidora: m.distribuidora, tipo_servicio: m.tipo_servicio, sistema: m.sistema }
+                  mm[curId] = updated
+                  saveMeters(mm)
+                  setMetersMap(mm)
+                  setMeterInfo(updated)
+                  showToast('Información del medidor actualizada', 'success')
+                }
                 setShowMeterModal(false)
                 setModalInitialMeter(null)
-                showToast('Información del contador guardada', 'success')
               }}
             />
+          )}
+          {showCompaniesModal && (
+            <CompaniesModal open={showCompaniesModal} onClose={()=>setShowCompaniesModal(false)} />
           )}
           {migrationInfo && (
             <div className="mt-4 p-3 bg-emerald-900/30 border border-emerald-700 rounded text-sm text-white">
