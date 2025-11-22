@@ -72,6 +72,20 @@ input:focus, button:focus, select:focus { outline: none; border-color: rgba(139,
 /* small utility to apply the same card padding and rounding */
 .card { @apply glass-card p-4 rounded-xl }
 
+/* ensure card contents don't force overflow on small devices */
+.card * { max-width: 100%; box-sizing: border-box }
+.card { overflow: hidden; word-break: break-word }
+.card p, .card div { word-break: break-word }
+
+/* inputs/selects/buttons shouldn't force minimum width */
+select, input, button { min-width: 0 }
+select { max-width: 100% }
+
+/* Ensure all glass-cards and cards occupy the same content width as the header */
+.glass-card, .card { width: 100%; max-width: 100% }
+.glass-card { box-sizing: border-box }
+.grid-cards { align-items: start }
+
 /* Mobile adjustments */
 @media (max-width: 480px) {
   html { font-size: 14px }
@@ -83,6 +97,19 @@ input:focus, button:focus, select:focus { outline: none; border-color: rgba(139,
 @media (max-width: 360px) {
   html { font-size: 13px }
   .card { padding: 0.5rem }
+}
+
+/* Extra small phones adjustments (<= 390px) */
+@media (max-width: 390px) {
+  html { font-size: 12px }
+  .card { padding: 0.4rem }
+  .glass-button { padding: 4px 6px }
+  /* make big numbers smaller inside cards */
+  .card .text-2xl { font-size: 1rem !important }
+  .card .text-lg { font-size: 0.9rem !important }
+  .card .text-sm { font-size: 0.72rem !important }
+  /* shrink select and inputs */
+  .card select, .card input { font-size: 0.85rem }
 }
 
 /* Toasts */

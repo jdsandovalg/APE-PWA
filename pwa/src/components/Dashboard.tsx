@@ -131,7 +131,8 @@ export default function Dashboard(){
 
   return (
     <section>
-      <div className="grid grid-cards gap-4">
+      <div className="grid grid-cards gap-4 sm:grid-cols-1 md:grid-cols-2">
+        {/* meter info moved to header (Navbar) to appear under the title */}
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
@@ -226,33 +227,7 @@ export default function Dashboard(){
             )}
           </div>
         </div>
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm text-gray-300">Información del contador</h3>
-              <p className="text-sm text-gray-200 mt-2">{meterInfo.contador} — {meterInfo.propietaria}</p>
-              <div className="text-xs text-gray-400 mt-1">{meterInfo.distribuidora} · {meterInfo.tipo_servicio} · Correlativo: {meterInfo.correlativo}</div>
-              <div className="mt-2">
-                <label className="text-xs text-gray-400">Medidor activo</label>
-                <select className="ml-2 bg-transparent border border-white/10 text-white px-2 py-1 rounded" value={currentMeterId} onChange={(e)=>{
-                  const id = e.target.value
-                  saveCurrentMeterId(id)
-                  setCurrentMeterId(id)
-                  const m = loadMeters()[id]
-                  if (m) setMeterInfo(m)
-                }}>
-                  {Object.keys(metersMap).map(k=> (
-                    <option key={k} value={k}>{k} — {metersMap[k].propietaria}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-              <div className="text-right flex flex-col items-end gap-2">
-              <button className="glass-button px-3 py-2 w-full sm:w-36 inline-flex items-center justify-center whitespace-nowrap" onClick={()=>{ setModalInitialMeter(meterInfo); setShowMeterModal(true) }}>Editar contador</button>
-              <button className="glass-button px-3 py-2 w-full sm:w-36 inline-flex items-center justify-center whitespace-nowrap" onClick={()=>{ setModalInitialMeter({ contador: '', correlativo: '', propietaria: '', nit: '', distribuidora: 'EEGSA', tipo_servicio: '', sistema: '' }); setShowMeterModal(true) }}>Agregar medidor</button>
-            </div>
-          </div>
-        </div>
+        {/* meter info will be rendered at the top */}
       </div>
 
       {/* Line chart card */}

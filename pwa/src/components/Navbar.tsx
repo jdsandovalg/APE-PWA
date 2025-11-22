@@ -124,9 +124,22 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
           <button onClick={exportAll} className="glass-button px-2 py-1 sm:px-3 sm:py-2 flex items-center gap-2" title="Exportar datos">
             <DownloadCloud size={16} />
           </button>
-          <div className="text-right">
-            <p className="text-sm text-gray-300">Contador</p>
-            <p className="text-lg font-bold text-white">Z90018</p>
+        </div>
+      </div>
+
+      {/* Meter info card placed under header title for immediate visibility on mobile */}
+      <div className="glass-card mb-4 p-3">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h3 className="text-sm text-gray-300">Información del contador</h3>
+            <p className="text-sm text-gray-200 mt-1">{loadMeterInfo().contador} — {loadMeterInfo().propietaria}</p>
+            <div className="text-xs text-gray-400 mt-1">{loadMeterInfo().distribuidora} · {loadMeterInfo().tipo_servicio} · Correlativo: {loadMeterInfo().correlativo}</div>
+          </div>
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-400">Medidor activo</label>
+            <select className="bg-transparent border border-white/10 text-white px-2 py-1 rounded" value={loadCurrentMeterId()} onChange={(e)=>{ try{ saveCurrentMeterId(e.target.value); window.location.reload() }catch(e){} }}>
+              {Object.keys(loadMeters()).map(k => (<option key={k} value={k}>{k} — {loadMeters()[k].propietaria}</option>))}
+            </select>
           </div>
         </div>
       </div>
