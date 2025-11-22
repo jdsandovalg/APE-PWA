@@ -18,7 +18,7 @@ export default function App(){
   },[])
 
   return (
-    <div className="min-h-screen p-4 sm:p-8">
+    <div className="min-h-screen p-4 sm:p-8 max-w-4xl mx-auto">
       <Navbar onNavigate={setView} />
       <main className="mt-6">
         {view === 'dashboard' && <Dashboard />}

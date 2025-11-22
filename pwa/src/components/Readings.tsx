@@ -127,7 +127,7 @@ export default function Readings(){
       <ConfirmModal open={showConfirmClear} title="Confirmar limpieza" message="¿Desea borrar todas las lecturas? Esta acción no se puede deshacer." onCancel={()=> setShowConfirmClear(false)} onConfirm={doClear} cancelText="Cancelar" confirmText="Borrar" />
 
       <div className="overflow-x-auto">
-        <table className="min-w-full text-left">
+        <table className="min-w-full text-left text-sm">
           <thead>
             <tr className="text-gray-300">
               <th>

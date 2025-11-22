@@ -72,6 +72,19 @@ input:focus, button:focus, select:focus { outline: none; border-color: rgba(139,
 /* small utility to apply the same card padding and rounding */
 .card { @apply glass-card p-4 rounded-xl }
 
+/* Mobile adjustments */
+@media (max-width: 480px) {
+  html { font-size: 14px }
+  .card { padding: 0.75rem } /* smaller card padding on phones */
+  .glass-button { padding: 6px 8px } /* reduce default padding for glass buttons */
+  .btn-primary { padding: .4rem .8rem }
+}
+
+@media (max-width: 360px) {
+  html { font-size: 13px }
+  .card { padding: 0.5rem }
+}
+
 /* Toasts */
 .ap-toast { opacity:1; transition: all 220ms ease; cursor: pointer }
 .ap-toast-info { background: linear-gradient(90deg,#374151,#111827); }

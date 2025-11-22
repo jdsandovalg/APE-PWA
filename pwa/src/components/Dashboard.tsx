@@ -254,9 +254,9 @@ export default function Dashboard(){
                 </select>
               </div>
             </div>
-            <div className="text-right flex flex-col items-end gap-2">
-              <button className="glass-button px-3 py-2 w-36 inline-flex items-center justify-center whitespace-nowrap" onClick={()=>{ setModalInitialMeter(meterInfo); setShowMeterModal(true) }}>Editar contador</button>
-              <button className="glass-button px-3 py-2 w-36 inline-flex items-center justify-center whitespace-nowrap" onClick={()=>{ setModalInitialMeter({ contador: '', correlativo: '', propietaria: '', nit: '', distribuidora: 'EEGSA', tipo_servicio: '', sistema: '' }); setShowMeterModal(true) }}>Agregar medidor</button>
+              <div className="text-right flex flex-col items-end gap-2">
+              <button className="glass-button px-3 py-2 w-full sm:w-36 inline-flex items-center justify-center whitespace-nowrap" onClick={()=>{ setModalInitialMeter(meterInfo); setShowMeterModal(true) }}>Editar contador</button>
+              <button className="glass-button px-3 py-2 w-full sm:w-36 inline-flex items-center justify-center whitespace-nowrap" onClick={()=>{ setModalInitialMeter({ contador: '', correlativo: '', propietaria: '', nit: '', distribuidora: 'EEGSA', tipo_servicio: '', sistema: '' }); setShowMeterModal(true) }}>Agregar medidor</button>
             </div>
           </div>
         </div>

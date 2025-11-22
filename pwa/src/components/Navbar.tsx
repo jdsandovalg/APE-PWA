@@ -107,21 +107,21 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
     <header>
       <div className="glass-card mb-4 p-4 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
-            <Sun className="w-6 h-6 text-white" />
+          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+            <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </div>
           <div>
-            <h1 className="text-2xl font-bold">AutoProductor Energía</h1>
-            <p className="text-sm text-gray-300">Gestión de Autoproducción</p>
+            <h1 className="text-xl sm:text-2xl font-bold">AutoProductor Energía</h1>
+            <p className="hidden sm:block text-sm text-gray-300">Gestión de Autoproducción</p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           <input ref={fileRef} type="file" accept="application/json" onChange={onFileChange} style={{ display: 'none' }} />
-          <button onClick={onImportClick} className="glass-button px-3 py-2 flex items-center gap-2" title="Importar datos">
+          <button onClick={onImportClick} className="glass-button px-2 py-1 sm:px-3 sm:py-2 flex items-center gap-2" title="Importar datos">
             <Upload size={16} />
           </button>
-          <button onClick={exportAll} className="glass-button px-3 py-2 flex items-center gap-2" title="Exportar datos">
+          <button onClick={exportAll} className="glass-button px-2 py-1 sm:px-3 sm:py-2 flex items-center gap-2" title="Exportar datos">
             <DownloadCloud size={16} />
           </button>
           <div className="text-right">
