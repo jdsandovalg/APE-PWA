@@ -145,7 +145,7 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
       </div>
 
       <nav className="glass-card p-2 mb-4">
-        <div className="flex flex-col sm:flex-row gap-2 sm:justify-center overflow-x-auto">
+        <div className="grid grid-cols-2 sm:flex gap-2 sm:justify-center overflow-x-auto">
           <button onClick={()=>onNavigate('dashboard')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 w-full sm:w-auto`}>
             <Home size={16} />
             <span className="font-medium text-sm text-left">Dashboard</span>
