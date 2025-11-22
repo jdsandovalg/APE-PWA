@@ -1,0 +1,12 @@
+{
+  "name": "auto-productor-energia-root",
+  "private": true,
+  "version": "0.0.0",
+  "scripts": {
+    "install": "npm --prefix pwa install",
+    "build": "npm --prefix pwa run build"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
