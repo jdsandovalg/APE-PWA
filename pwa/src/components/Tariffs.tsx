@@ -98,8 +98,8 @@ export default function Tariffs(){
   return (
     <>
     <section>
-      <div className="grid md:grid-cols-3 gap-4">
-        <div className="card col-span-1">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="card md:col-span-1 col-span-1 w-full">
           <div className="flex items-center justify-between">
             <h3 className="text-lg">Trimestres / Tarifas</h3>
             <div className="flex gap-2">
@@ -110,7 +110,7 @@ export default function Tariffs(){
           <div className="mt-4 space-y-2">
             {items.length===0 && <div className="text-sm text-gray-400">No hay tarifas registradas.</div>}
             {items.map((it,idx)=> (
-              <div key={it.header.id} className={`p-2 rounded border ${selectedIdx===idx? 'border-blue-400 bg-white/5':'border-transparent hover:border-gray-700'}`}>
+              <div key={it.header.id} className={`p-2 rounded border w-full ${selectedIdx===idx? 'border-blue-400 bg-white/5':'border-transparent hover:border-gray-700'}`}>
                 <div className="flex justify-between items-center">
                   <div>
                     <div className="font-medium">{it.header.company} — {it.header.segment}</div>
@@ -118,7 +118,7 @@ export default function Tariffs(){
                   </div>
                   <div className="flex items-center gap-2">
                     <button className="btn-ghost" onClick={()=>setSelectedIdx(idx)}>Editar</button>
-                    <button className="btn-ghost text-red-400" onClick={()=>requestRemoveAt(idx)} title="Eliminar"><Trash size={14} /></button>
+                    <button aria-label={`Eliminar tarifa ${it.header.id}`} className="btn-ghost text-red-400 flex items-center justify-center p-1" onClick={()=>requestRemoveAt(idx)} title="Eliminar"><Trash size={14} /></button>
                   </div>
                 </div>
               </div>
@@ -126,7 +126,7 @@ export default function Tariffs(){
           </div>
         </div>
 
-        <div className="card col-span-2">
+        <div className="card md:col-span-2 col-span-1 w-full">
           {selectedIdx===null ? (
             <div className="text-gray-300">Selecciona un trimestre a la izquierda para editar sus valores. Puedes importar el archivo extraído o crear uno nuevo.</div>
           ) : (
