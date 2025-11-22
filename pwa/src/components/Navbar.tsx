@@ -1,6 +1,7 @@
 import React from 'react'
-import { Home, Calendar, DollarSign, DownloadCloud, Sun, Hammer } from 'lucide-react'
-import { loadMeters, loadTariffs, loadReadings, loadCurrentMeterId, loadMeterInfo, loadMigrationInfo } from '../services/storage'
+import { Home, Calendar, DollarSign, DownloadCloud, Sun, Hammer, Upload } from 'lucide-react'
+import { loadMeters, loadTariffs, loadReadings, loadCurrentMeterId, loadMeterInfo, loadMigrationInfo, saveMeters, saveTariffs, saveReadings, saveMeterInfo, saveCurrentMeterId } from '../services/storage'
+import { showToast } from '../services/toast'
 
 function downloadJSON(obj: any, filename = 'apenergia-export.json'){
   try{
@@ -48,7 +49,60 @@ function exportAll(){
   }catch(e){ console.error('exportAll failed', e) }
 }
 
+function importAllFromFile(file: File){
+  const reader = new FileReader()
+  reader.onload = (ev) => {
+    try{
+      const txt = String(ev.target?.result || '')
+      const payload = JSON.parse(txt)
+      // Prefer structured fields when present
+      if (payload.meters) try{ saveMeters(payload.meters); showToast('Medidores importados', 'success') }catch(e){}
+      if (payload.current_meter) try{ saveCurrentMeterId(payload.current_meter); showToast('Contador actual importado', 'success') }catch(e){}
+      if (payload.meter_info) try{ saveMeterInfo(payload.meter_info); showToast('Información del contador importada', 'success') }catch(e){}
+      if (payload.tariffs) try{ saveTariffs(payload.tariffs); showToast('Tarifas importadas', 'success') }catch(e){}
+      if (payload.readings) {
+        // readings is expected to be an object keyed by meter id
+        try{
+          Object.keys(payload.readings).forEach(mid => {
+            try{ saveReadings(payload.readings[mid] || [], mid) }catch(e){}
+          })
+          showToast('Lecturas importadas', 'success')
+        }catch(e){}
+      }
+      // If a raw localStorage snapshot exists, restore unknown keys
+      if (payload.localStorage && typeof payload.localStorage === 'object'){
+        try{
+          Object.keys(payload.localStorage).forEach(k => {
+            try{ localStorage.setItem(k, payload.localStorage[k]) }catch(e){}
+          })
+          showToast('LocalStorage restaurado (claves importadas)', 'success')
+        }catch(e){}
+      }
+      showToast('Importación finalizada. Recarga la página para ver los cambios.', 'info')
+    }catch(err){
+      console.error('Import failed', err)
+      showToast('Error al importar: archivo inválido', 'error')
+    }
+  }
+  reader.onerror = (e) => { console.error('file read error', e); showToast('Error leyendo el archivo', 'error') }
+  reader.readAsText(file)
+}
+
 export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'readings'|'tariffs'|'billing')=>void }){
+  const fileRef = React.useRef<HTMLInputElement | null>(null)
+
+  function onImportClick(){
+    try{ fileRef.current && fileRef.current.click() }catch(e){}
+  }
+
+  function onFileChange(e: React.ChangeEvent<HTMLInputElement>){
+    const f = e.target.files && e.target.files[0]
+    if (!f) return
+    importAllFromFile(f)
+    // reset so same file can be picked again if needed
+    try{ e.currentTarget.value = '' }catch(e){}
+  }
+
   return (
     <header>
       <div className="glass-card mb-4 p-4 flex items-center justify-between flex-wrap gap-4">
@@ -63,6 +117,10 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
         </div>
 
         <div className="flex items-center gap-3">
+          <input ref={fileRef} type="file" accept="application/json" onChange={onFileChange} style={{ display: 'none' }} />
+          <button onClick={onImportClick} className="glass-button px-3 py-2 flex items-center gap-2" title="Importar datos">
+            <Upload size={16} />
+          </button>
           <button onClick={exportAll} className="glass-button px-3 py-2 flex items-center gap-2" title="Exportar datos">
             <DownloadCloud size={16} />
           </button>

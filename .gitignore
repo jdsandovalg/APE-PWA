@@ -26,3 +26,4 @@ Respaldo/node_modules/
 
 # Ignore backup folder
 Respaldo/
+.vercel
