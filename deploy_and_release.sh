@@ -80,7 +80,7 @@ SITE_ID="${NETLIFY_SITE_ID:-$DEFAULT_SITE_ID}"
 if [ -z "${NETLIFY_AUTH_TOKEN:-}" ]; then
   if [ -f "$DEFAULT_TOKEN_FILE" ]; then
     # try to extract token from file (supports formats like: NETLIFY_AUTH_TOKEN=xxx)
-    TOK_LINE=$(grep -Eo 'NETLIFY_AUTH_TOKEN=[^\"\'"\ ]+' "$DEFAULT_TOKEN_FILE" | head -n1 || true)
+    TOK_LINE=$(grep -Eo 'NETLIFY_AUTH_TOKEN=[^[:space:]]+' "$DEFAULT_TOKEN_FILE" | head -n1 || true)
     if [ -n "$TOK_LINE" ]; then
       # remove prefix
       EXTRACTED=$(echo "$TOK_LINE" | cut -d= -f2-)
@@ -93,7 +93,7 @@ if [ -z "${NETLIFY_AUTH_TOKEN:-}" ]; then
       echo "[deploy] NETLIFY_AUTH_TOKEN loaded from $DEFAULT_TOKEN_FILE (hidden)."
     fi
     # also try SITE ID
-    SITE_LINE=$(grep -Eo 'NETLIFY_SITE_ID=[^\"\'"\ ]+' "$DEFAULT_TOKEN_FILE" | head -n1 || true)
+    SITE_LINE=$(grep -Eo 'NETLIFY_SITE_ID=[^[:space:]]+' "$DEFAULT_TOKEN_FILE" | head -n1 || true)
     if [ -n "$SITE_LINE" ]; then
       EX_SITE=$(echo "$SITE_LINE" | cut -d= -f2-)
       EX_SITE=${EX_SITE%"}
