@@ -1,0 +1,14 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "pwa/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "pwa/dist" }
+    }
+  ],
+  "routes": [
+    { "src": "/sw.js", "headers": { "cache-control": "public, max-age=0, must-revalidate" }, "dest": "/sw.js" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ]
+}
