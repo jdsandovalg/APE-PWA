@@ -1,4 +1,5 @@
 import React from 'react'
+import { X, Check } from 'lucide-react'
 
 type Props = {
   open: boolean,
@@ -27,8 +28,8 @@ export default function ConfirmModal({ open, title, message, onCancel, onConfirm
         {title && <h3 className="text-lg font-semibold mb-2">{title}</h3>}
         <div className="text-sm text-gray-300 mb-4">{message}</div>
         <div className="flex justify-end gap-2">
-          <button id="confirm-cancel-btn" className="glass-button px-3 py-2" onClick={onCancel}>{cancelText}</button>
-          <button className="glass-button px-3 py-2 bg-red-600 text-white" onClick={onConfirm}>{confirmText}</button>
+          <button id="confirm-cancel-btn" className="glass-button p-2 flex items-center gap-2" title={cancelText} aria-label={cancelText} onClick={onCancel}><X size={14} /><span className="hidden md:inline">{cancelText}</span></button>
+          <button className="glass-button p-2 bg-red-600 text-white flex items-center gap-2" title={confirmText} aria-label={confirmText} onClick={onConfirm}><Check size={14} /><span className="hidden md:inline">{confirmText}</span></button>
         </div>
       </div>
     </div>

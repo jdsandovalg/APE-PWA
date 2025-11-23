@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { loadTariffs, saveTariffs, TariffSet, TariffDetail, TariffHeader, loadCompanies } from '../services/storage'
-import { Save, Trash, PlusCircle, Upload, Edit } from 'lucide-react'
+import { Save, Trash, PlusCircle, Upload, Edit, X } from 'lucide-react'
 import ConfirmModal from './ConfirmModal'
 import { showToast } from '../services/toast'
 
@@ -40,7 +40,11 @@ export default function Tariffs(){
     const today = new Date()
     const from = new Date(today.getFullYear(), today.getMonth(), 1)
     const to = new Date(from); to.setMonth(from.getMonth()+2); // quarterly approx
-    const header: TariffHeader = { id: makeId('EEGSA','BTSA', from.toISOString().slice(0,10), to.toISOString().slice(0,10)), company: 'EEGSA', segment: 'BTSA', period: { from: from.toISOString().slice(0,10), to: to.toISOString().slice(0,10) }, currency: 'GTQ' }
+    const defaultCompany = 'EEGSA'
+    const defaultSegment = 'BTSA'
+    const comps = loadCompanies()
+    const found = comps.find(c=> c.id === defaultCompany)
+    const header: TariffHeader = { id: makeId(defaultCompany,defaultSegment, from.toISOString().slice(0,10), to.toISOString().slice(0,10)), company: defaultCompany, companyCode: found?.code || undefined, segment: defaultSegment, period: { from: from.toISOString().slice(0,10), to: to.toISOString().slice(0,10) }, currency: 'GTQ' }
     const s: TariffSet = { header, rates: emptyRates() }
     const next = [...items, s]
     persist(next)
@@ -77,11 +81,14 @@ export default function Tariffs(){
       const header: TariffHeader = {
         id: t.id || makeId(t.company||'EEGSA', t.segment||'BTSA', t.period?.from||t.period_from||'2025-08-01', t.period?.to||t.period_to||'2025-10-31'),
         company: t.company||'EEGSA',
+        companyCode: undefined,
         segment: t.segment||'BTSA',
         period: t.period || { from: t.period_from || '2025-08-01', to: t.period_to || '2025-10-31' },
         currency: t.currency||'GTQ',
         sourcePdf: t.pdf || t.sourcePdf || 'Octubre2025.pdf'
       }
+      // try to fill companyCode from companies master
+      try{ const comps = loadCompanies(); const found = comps.find(c=> c.id === header.company); if (found && found.code) header.companyCode = found.code }catch(e){}
       const rates = {
         fixedCharge_Q: Number(t.rates?.fixedCharge_Q ?? t.rates?.fixedCharge_Q ?? t.fixedCharge_Q ?? 0),
         energy_Q_per_kWh: Number(t.rates?.energy_Q_per_kWh ?? t.energy_Q_per_kWh ?? t.rates?.energy ?? 0),
@@ -209,10 +216,25 @@ export default function Tariffs(){
             </div>
 
             <div className="mt-4 flex justify-end gap-2">
-              <button className="glass-button px-3 py-2" onClick={()=> setShowEditModal(false)}>Cancelar</button>
-              <button className="glass-button px-3 py-2 bg-green-600 text-white" onClick={()=>{
-                // persist modalForm back into items
+              <button className="glass-button p-2 flex items-center gap-2" title="Cancelar" aria-label="Cancelar" onClick={()=> setShowEditModal(false)}><X size={14} /><span className="hidden md:inline">Cancelar</span></button>
+              <button className="glass-button p-2 bg-green-600 text-white flex items-center gap-2" title="Guardar tarifa" aria-label="Guardar tarifa" onClick={()=>{
+                // persist modalForm back into items with validations
                 if (!modalForm) return
+                // required header fields
+                const hdr = modalForm.header || {} as TariffHeader
+                if (!hdr.company || !hdr.company.trim()){ try{ showToast('Seleccione la empresa para esta tarifa', 'error') }catch(e){}; return }
+                // companyCode is mandatory per new rule
+                if (!hdr.companyCode || !String(hdr.companyCode).trim()){ try{ showToast('El código de empresa (companyCode) es obligatorio. Defínalo en Empresas antes de guardar.', 'error') }catch(e){}; return }
+                if (!hdr.segment || !hdr.segment.trim()){ try{ showToast('El segmento es obligatorio', 'error') }catch(e){}; return }
+                if (!hdr.period || !hdr.period.from || !hdr.period.to){ try{ showToast('Periodo inválido. Verifique fechas desde/hasta.', 'error') }catch(e){}; return }
+                // validate date order
+                try{
+                  const fromD = new Date(hdr.period.from)
+                  const toD = new Date(hdr.period.to)
+                  if (isNaN(fromD.getTime()) || isNaN(toD.getTime()) || fromD.getTime() > toD.getTime()){ try{ showToast('Periodo inválido: la fecha "desde" debe ser anterior o igual a "hasta".', 'error') }catch(e){}; return }
+                }catch(e){ try{ showToast('Periodo inválido', 'error') }catch(e){}; return }
+                // ensure id exists (regenerate if needed)
+                if (!hdr.id || hdr.id.trim() === '') hdr.id = makeId(hdr.company || 'X', hdr.segment || 'S', hdr.period.from || '0000-00-00', hdr.period.to || '0000-00-00')
                 const next = items.map(it => it.header.id === modalForm.header.id ? modalForm : it)
                 persist(next)
                 setShowEditModal(false)

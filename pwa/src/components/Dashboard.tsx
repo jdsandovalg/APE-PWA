@@ -5,8 +5,8 @@ import ConfirmModal from './ConfirmModal'
 import CompaniesModal from './CompaniesModal'
 import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
-import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle } from 'lucide-react'
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area } from 'recharts'
+import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Edit, Users, Upload, X, Plus } from 'lucide-react'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area, LabelList } from 'recharts'
 
 function currency(v:number){ return `Q ${v.toFixed(2)}` }
 
@@ -106,6 +106,8 @@ export default function Dashboard(){
   // compute chart data (rows and cumulativeRows) for charts
   let chartRows: any[] = []
   let cumulativeRows: any[] = []
+  let chartRowsAvg: any[] = []
+  let chartRowsAvgProd: any[] = []
   try {
     const rawsForChart = loadReadings()
     if (rawsForChart && rawsForChart.length >= 2) {
@@ -123,11 +125,29 @@ export default function Dashboard(){
         const net = productionDelta - consumptionDelta
         chartRows.push({ date: curr.date.split('T')[0], consumption: consumptionDelta, production: productionDelta, net })
       }
+      // build average kWh/day series (consumptionDelta / days between readings)
+      const MS_PER_DAY = 1000 * 60 * 60 * 24
+      const avgConsSeries: any[] = []
+      const avgProdSeries: any[] = []
+      for (let i=1;i<items.length;i++){
+        const prev = items[i-1]
+        const curr = items[i]
+        const consumptionDelta = Number(curr.consumption || 0) - Number(prev.consumption || 0)
+        const productionDelta = Number(curr.production || 0) - Number(prev.production || 0)
+        const days = Math.max(0, Math.floor((new Date(curr.date).getTime() - new Date(prev.date).getTime()) / MS_PER_DAY))
+        const avgCons = days > 0 ? (consumptionDelta / days) : null
+        const avgProd = days > 0 ? (productionDelta / days) : null
+        avgConsSeries.push({ date: curr.date.split('T')[0], avg: avgCons, raw: consumptionDelta, days })
+        avgProdSeries.push({ date: curr.date.split('T')[0], avg: avgProd, raw: productionDelta, days })
+      }
       let running = 0
       cumulativeRows = chartRows.map(r=>{
         running += (Number(r.production)||0) - (Number(r.consumption)||0)
         return { ...r, cumulative: running, positive: Math.max(running,0), negative: Math.abs(Math.min(running,0)) }
       })
+      // expose avg series to outer scope
+      chartRowsAvg = avgConsSeries
+      chartRowsAvgProd = avgProdSeries
     }
   }catch(e){ chartRows = []; cumulativeRows = [] }
 
@@ -142,18 +162,18 @@ export default function Dashboard(){
               <div className="mt-2 text-xs text-gray-200">Contador: <strong>{meterInfo.contador}</strong> · Correlativo: <strong>{meterInfo.correlativo}</strong></div>
             </div>
             <div className="ml-4 flex flex-col gap-2 items-end">
-              <button className="glass-button px-2 py-1 text-xs" onClick={()=>{
+              <button className="glass-button p-2" title="Crear nuevo contador" aria-label="Crear nuevo contador" onClick={()=>{
                 // open modal in create mode (empty form); use companies master for default distribuidora
                 let defaultDistrib = 'EEGSA'
                 try{ const comps = loadCompanies(); if (comps && comps.length>0) defaultDistrib = comps[0].id }catch(e){}
                 setModalInitialMeter({ contador: '', correlativo: '', propietaria: '', nit: '', distribuidora: defaultDistrib, tipo_servicio: '', sistema: '' })
                 setShowMeterModal(true)
-              }}>Crear nuevo contador</button>
-              <button className="glass-button px-2 py-1 text-xs" onClick={()=>{
+              }}><PlusCircle size={14} /></button>
+              <button className="glass-button p-2" title="Actualizar información" aria-label="Actualizar información" onClick={()=>{
                 // open modal in edit mode but make PK read-only
                 setModalInitialMeter(meterInfo)
                 setShowMeterModal(true)
-              }}>Actualizar información</button>
+              }}><Edit size={14} /></button>
             </div>
           </div>
         </div>
@@ -164,7 +184,7 @@ export default function Dashboard(){
               <p className="text-xs text-gray-400 mt-1">Gestiona empresas y códigos de tarifa</p>
             </div>
             <div>
-              <button className="glass-button px-2 py-1 text-xs" onClick={()=> setShowCompaniesModal(true)}>Empresas / Códigos</button>
+              <button className="glass-button p-2" title="Empresas / Códigos" aria-label="Empresas y códigos" onClick={()=> setShowCompaniesModal(true)}><Users size={14} /></button>
             </div>
           </div>
         </div>
@@ -239,9 +259,9 @@ export default function Dashboard(){
             </div>
             <AlertTriangle className="text-red-400" size={28} />
           </div>
-          <div className="mt-3 flex gap-2">
+            <div className="mt-3 flex gap-2">
             <button
-              className={`glass-button px-3 py-2 ${readingsMissingTariff.length===0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`glass-button p-2 flex items-center gap-2 ${readingsMissingTariff.length===0 ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={readingsMissingTariff.length===0}
               onClick={()=>{
                 if (readingsMissingTariff.length===0) return
@@ -250,16 +270,16 @@ export default function Dashboard(){
                 setShowCreateQuartersModal(true)
               }}
               title={readingsMissingTariff.length===0 ? 'No hay lecturas sin tarifa pendientes' : 'Crear trimestres anteriores (KIS)'}
-            >Crear trimestres anteriores (KIS)</button>
+            ><PlusCircle size={14} /><span className="hidden md:inline">Crear trimestres anteriores (KIS)</span></button>
             {/* Migration button: only show if legacy key exists */}
             {typeof window !== 'undefined' && window.localStorage.getItem('apenergia:readings') && (
               <>
                 <button
-                  className="glass-button px-3 py-2 bg-amber-600"
+                  className="glass-button p-2 bg-amber-600 text-white flex items-center gap-2"
                   onClick={()=>{
                     setShowMigrateConfirm(true)
                   }}
-                >Migrar lecturas legacy</button>
+                ><Upload size={14} /><span className="hidden md:inline">Migrar lecturas legacy</span></button>
               </>
             )}
           </div>
@@ -288,6 +308,56 @@ export default function Dashboard(){
             </ResponsiveContainer>
           </div>
       </div>
+
+        {/* Average consumption per day chart */}
+        <div className="glass-card mt-6 p-4">
+          <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+            <Zap className="w-5 h-5 text-yellow-400" />
+            Recibida kWh/día (promedio)
+          </h3>
+          <div style={{ width: '100%', height: 300 }}>
+            <ResponsiveContainer>
+              <LineChart data={chartRowsAvg || []} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10 }} />
+                <YAxis tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10 }} />
+                <Tooltip formatter={(value: any, name: any, props: any) => {
+                  if (name === 'avg') return [`${Number(value).toFixed(2)} kWh/d`, 'Promedio']
+                  return [`${value} kWh`, name]
+                }} itemStyle={{ color: '#fff' }} contentStyle={{ background: '#0b1222', borderColor: 'rgba(255,255,255,0.06)' }} />
+                <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.7)' }} />
+                <Line type="monotone" dataKey="avg" name="kWh/día (avg)" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false}>
+                  <LabelList dataKey="avg" position="top" style={{ fontSize: 8, fill: 'rgba(255,255,255,0.9)' }} formatter={(v:any)=> v==null?'-':Number(v).toFixed(2)} />
+                </Line>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Average production per day chart */}
+        <div className="glass-card mt-6 p-4">
+          <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+            <Zap className="w-5 h-5 text-yellow-400" />
+            Entregada kWh/día (promedio)
+          </h3>
+          <div style={{ width: '100%', height: 300 }}>
+            <ResponsiveContainer>
+              <LineChart data={chartRowsAvgProd || []} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10 }} />
+                <YAxis tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10 }} />
+                <Tooltip formatter={(value: any, name: any) => {
+                  if (name === 'avg') return [`${Number(value).toFixed(2)} kWh/d`, 'Promedio']
+                  return [`${value} kWh`, name]
+                }} itemStyle={{ color: '#fff' }} contentStyle={{ background: '#0b1222', borderColor: 'rgba(255,255,255,0.06)' }} />
+                <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.7)' }} />
+                <Line type="monotone" dataKey="avg" name="kWh/día (avg)" stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false}>
+                  <LabelList dataKey="avg" position="top" style={{ fontSize: 8, fill: 'rgba(255,255,255,0.9)' }} formatter={(v:any)=> v==null?'-':Number(v).toFixed(2)} />
+                </Line>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
         {/* Area chart card (accumulated saldo) */}
         <div className="glass-card mt-6 p-4">
@@ -350,7 +420,7 @@ export default function Dashboard(){
           {migrationInfo && (
             <div className="mt-4 p-3 bg-emerald-900/30 border border-emerald-700 rounded text-sm text-white">
               Migración completada: se migraron <strong>{migrationInfo.migrated}</strong> lecturas a <code className="mx-1">{migrationInfo.to}</code>. Backup guardado en <code className="mx-1">{migrationInfo.backupKey}</code>.
-              <button className="ml-4 glass-button px-2 py-1" onClick={()=>{ clearMigrationInfo(); setMigrationInfo(null); showToast('Aviso de migración descartado', 'info') }}>Cerrar</button>
+              <button className="ml-4 glass-button p-2 flex items-center gap-2" title="Cerrar" aria-label="Cerrar aviso de migración" onClick={()=>{ clearMigrationInfo(); setMigrationInfo(null); showToast('Aviso de migración descartado', 'info') }}><X size={14} /><span className="hidden md:inline">Cerrar</span></button>
             </div>
           )}
           {showCreateQuartersModal && (
@@ -364,15 +434,15 @@ export default function Dashboard(){
                   <input type="number" min={1} value={createQuartersCount} onChange={(e)=>setCreateQuartersCount(Number(e.target.value||0))} className="ml-2 bg-transparent border border-white/10 text-white px-2 py-1 rounded w-24" />
                 </div>
                 <div className="flex justify-end gap-2">
-                  <button className="glass-button px-3 py-2" onClick={()=>setShowCreateQuartersModal(false)}>Cancelar</button>
-                  <button className="glass-button px-3 py-2 bg-green-600 text-white" onClick={()=>{
+                  <button className="glass-button p-2 flex items-center gap-2" title="Cancelar" aria-label="Cancelar" onClick={()=>setShowCreateQuartersModal(false)}><X size={14} /><span className="hidden md:inline">Cancelar</span></button>
+                  <button className="glass-button p-2 bg-green-600 text-white flex items-center gap-2" title="Crear trimestres" aria-label="Crear trimestres anteriores" onClick={()=>{
                     const n = Number(createQuartersCount||0)
                     if (!n || n<=0){ showToast('Ingresa un número válido de trimestres', 'error'); return }
                     setShowCreateQuartersModal(false)
                     const res = createPreviousQuartersFromActive(n, 'EEGSA', 'BTSA')
                     showToast(`Creados: ${res.created}. Revisa la sección Tarifas.`, 'success')
                     setTimeout(()=> window.location.reload(), 900)
-                  }}>Crear</button>
+                  }}><PlusCircle size={14} /><span className="hidden md:inline">Crear</span></button>
                 </div>
               </div>
             </div>

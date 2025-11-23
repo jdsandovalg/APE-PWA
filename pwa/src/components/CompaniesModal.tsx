@@ -1,7 +1,7 @@
 import React from 'react'
 import { CompanyInfo, loadCompanies, saveCompanies } from '../services/storage'
 import { showToast } from '../services/toast'
-import { Edit } from 'lucide-react'
+import { Edit, PlusCircle, Save, X, Trash2 } from 'lucide-react'
 
 type Props = {
   open: boolean,
@@ -20,7 +20,7 @@ export default function CompaniesModal({ open, onClose }: Props){
   function updateForm(k: keyof CompanyInfo, v: string){ setForm(prev => ({ ...prev, [k]: v })) }
 
   function handleAddOrUpdate(){
-    if (!form.id || !form.name){ try{ showToast('Completa id y nombre', 'error') }catch(e){}; return }
+    if (!form.id || !form.name || !form.code){ try{ showToast('Completa ID, nombre y código (obligatorio)', 'error') }catch(e){}; return }
     const copy = [...list]
     if (editingIndex === null){
       // prevent duplicate id
@@ -63,13 +63,13 @@ export default function CompaniesModal({ open, onClose }: Props){
           <label className="text-sm">Nombre
             <input value={form.name} onChange={e=>updateForm('name', e.target.value)} className="w-full bg-white/5 text-white px-2 py-2 rounded mt-1" />
           </label>
-          <label className="text-sm col-span-1 sm:col-span-2">Código (opcional)
+          <label className="text-sm col-span-1 sm:col-span-2">Código (obligatorio)
             <input value={form.code} onChange={e=>updateForm('code', e.target.value)} className="w-full bg-white/5 text-white px-2 py-2 rounded mt-1" />
           </label>
         </div>
         <div className="flex justify-end gap-2 mb-4">
-          <button className="glass-button px-3 py-2" onClick={()=>{ setForm({ id: '', name: '', code: '' }); setEditingIndex(null) }}>Limpiar</button>
-          <button className="glass-button px-3 py-2 bg-green-600 text-white" onClick={handleAddOrUpdate}>{editingIndex===null ? 'Agregar' : 'Actualizar'}</button>
+          <button className="glass-button p-2 flex items-center gap-2" title="Limpiar" aria-label="Limpiar" onClick={()=>{ setForm({ id: '', name: '', code: '' }); setEditingIndex(null) }}><X size={14} /><span className="hidden md:inline">Limpiar</span></button>
+          <button className="glass-button p-2 bg-green-600 text-white flex items-center gap-2" title={editingIndex===null? 'Agregar empresa':'Actualizar empresa'} aria-label={editingIndex===null? 'Agregar empresa':'Actualizar empresa'} onClick={handleAddOrUpdate}><Save size={14} /><span className="hidden md:inline">{editingIndex===null ? 'Agregar' : 'Actualizar'}</span></button>
         </div>
 
         <div className="overflow-auto max-h-64">
@@ -94,7 +94,7 @@ export default function CompaniesModal({ open, onClose }: Props){
                     <td className="p-2 align-top">
                       <div className="flex gap-2">
                         <button title="Editar" className="glass-button px-2 py-1" onClick={()=>handleEdit(i)}><Edit size={14} /></button>
-                        <button className="glass-button px-2 py-1 bg-red-600 text-white" onClick={()=>handleDelete(i)}>Eliminar</button>
+                        <button className="glass-button px-2 py-1 bg-red-600 text-white" title="Eliminar" aria-label={`Eliminar ${c.id}`} onClick={()=>handleDelete(i)}><Trash2 size={14} /></button>
                       </div>
                     </td>
                   </tr>
@@ -105,7 +105,7 @@ export default function CompaniesModal({ open, onClose }: Props){
         </div>
 
         <div className="mt-4 flex justify-end">
-          <button className="glass-button px-3 py-2" onClick={onClose}>Cerrar</button>
+          <button className="glass-button p-2 flex items-center gap-2" title="Cerrar" aria-label="Cerrar" onClick={onClose}><X size={14} /><span className="hidden md:inline">Cerrar</span></button>
         </div>
       </div>
     </div>

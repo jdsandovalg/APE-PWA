@@ -1,6 +1,119 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+: <<'DOC'
+MODOS DE USO (ejemplos):
+
+1) Deploy completo (build → commit → push → deploy a Netlify)
+   - Recomendada (usar variable de entorno):
+       export NETLIFY_AUTH_TOKEN="tu_token"
+       ./deploy_from_pwa.sh -m "chore(deploy): mensaje"
+
+   - Usando archivo local (no incluir en repo):
+       echo "NETLIFY_AUTH_TOKEN=nfp_xxxTU_TOKEN" > .netlify_token
+       ./deploy_from_pwa.sh -m "chore(deploy): mensaje"
+
+2) Solo push (build → commit → push, sin deploy a Netlify):
+       ./deploy_from_pwa.sh -s -m "chore(deploy): push only"
+
+3) Ayuda:
+       ./deploy_from_pwa.sh -h
+
+Notas:
+ - El script se ejecuta desde el directorio `pwa`.
+ - Prefiere usar `NETLIFY_AUTH_TOKEN` en entorno o CI secrets.
+ - El archivo `.netlify_token` está en `.gitignore`.
+DOC
+
+# Deploy helper to run from inside the `pwa` directory.
+# Usage: ./deploy_from_pwa.sh [-s|--skip-netlify] -m "commit message"
+
+DEFAULT_SITE_ID="becf03c1-b495-476e-beea-0d845899650f"
+DEFAULT_TOKEN_FILE=".netlify_token"
+
+SKIP_NETLIFY=0
+MSG=""
+
+usage(){
+  echo "Usage: $0 [-s|--skip-netlify] -m \"commit message\""
+  exit 1
+}
+
+if [ "$#" -eq 0 ]; then usage; fi
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -s|--skip-netlify) SKIP_NETLIFY=1; shift ;;
+    -h|--help) usage ;;
+    -m) shift; MSG="$1"; shift ;;
+    *) MSG="$*"; break ;;
+  esac
+done
+
+MSG=${MSG:-"chore(deploy): update"}
+echo "[deploy] Commit message: $MSG"
+
+echo "[deploy] Building PWA in $(pwd)..."
+npm run build
+
+echo "[deploy] Staging changes..."
+git add -A
+if git diff --cached --quiet; then
+  echo "[deploy] No staged changes to commit."
+else
+  git commit -m "$MSG"
+fi
+
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+echo "[deploy] Pushing to origin/$BRANCH..."
+git push origin "$BRANCH"
+
+if [ "$SKIP_NETLIFY" -eq 1 ]; then
+  echo "[deploy] Skipping Netlify deploy as requested."; exit 0
+fi
+
+SITE_ID=${NETLIFY_SITE_ID:-$DEFAULT_SITE_ID}
+
+# If token not in env, try to read from DEFAULT_TOKEN_FILE (simple parsing)
+if [ -z "${NETLIFY_AUTH_TOKEN:-}" ] && [ -f "$DEFAULT_TOKEN_FILE" ]; then
+  TOK_LINE=$(grep -m1 '^NETLIFY_AUTH_TOKEN=' "$DEFAULT_TOKEN_FILE" || true)
+  if [ -n "$TOK_LINE" ]; then
+    TOK_VALUE=${TOK_LINE#*=}
+    TOK_VALUE=$(printf "%s" "$TOK_VALUE" | sed -E 's/^['"']?//; s/['"']?$//')
+    export NETLIFY_AUTH_TOKEN="$TOK_VALUE"
+    echo "[deploy] NETLIFY_AUTH_TOKEN loaded from $DEFAULT_TOKEN_FILE (hidden)"
+  fi
+fi
+
+if [ -z "${NETLIFY_AUTH_TOKEN:-}" ]; then
+  echo "[deploy] ERROR: NETLIFY_AUTH_TOKEN not set. Export it or add to $DEFAULT_TOKEN_FILE." >&2
+  exit 2
+fi
+
+echo "[deploy] Deploying to Netlify site: $SITE_ID"
+GIT_COMMIT=$(git rev-parse --short HEAD)
+echo "[deploy] Git commit deployed: $GIT_COMMIT"
+
+DIST_DIR="./dist"
+if [ ! -d "$DIST_DIR" ]; then
+  echo "[deploy] ERROR: dist directory not found at $DIST_DIR" >&2; exit 3
+fi
+
+if command -v node >/dev/null 2>&1; then
+  node -e "const fs=require('fs');const path=process.argv[1];let obj={};try{obj=JSON.parse(fs.readFileSync(path,'utf8'))}catch(e){};obj.commit=process.argv[2];obj.builtAt=new Date().toISOString();fs.writeFileSync(path,JSON.stringify(obj,null,2));" "$DIST_DIR/build-meta.json" "$GIT_COMMIT" || true
+else
+  echo "[deploy] Warning: node not found; skipping build-meta injection." >&2
+fi
+
+NETLIFY_AUTH_TOKEN="$NETLIFY_AUTH_TOKEN" npx --yes netlify deploy --prod --dir="$DIST_DIR" --site="$SITE_ID" || {
+  echo "[deploy] Netlify deploy command failed." >&2
+  exit 4
+}
+
+echo "[deploy] Done."
+#!/usr/bin/env bash
+set -euo pipefail
+
 # Deploy helper to run from inside the `pwa` directory.
 # Usage: ./deploy_from_pwa.sh [-s|--skip-netlify] "commit message"
 

@@ -3,7 +3,7 @@ import Navbar from './components/Navbar'
 import Dashboard from './components/Dashboard'
 import Readings from './components/Readings'
 import Tariffs from './components/Tariffs'
-import BillingTest from './components/BillingTest'
+import Billing from './components/Billing'
 import Footer from './components/Footer'
 import { loadReadings, loadTariffs } from './services/storage'
 
@@ -24,7 +24,7 @@ export default function App(){
         {view === 'dashboard' && <Dashboard />}
         {view === 'readings' && <Readings />}
         {view === 'tariffs' && <Tariffs />}
-        {view === 'billing' && <BillingTest />}
+        {view === 'billing' && <Billing />}
       </main>
       <Footer />
     </div>

@@ -1,6 +1,7 @@
 import React from 'react'
-import { loadReadings, saveReadings } from '../services/storage'
+import { loadReadings, saveReadings, loadCurrentMeterId, loadMeterInfo, findActiveTariffForDate } from '../services/storage'
 import { showToast } from '../services/toast'
+import { X, Save } from 'lucide-react'
 
 type Props = {
   open: boolean,
@@ -41,15 +42,20 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
     try{
       const all = loadReadings()
       if (!all || all.length === 0){ update('days', 0); return }
-      // find last (most recent) reading by date
-      const sorted = [...all].map(r=>({ ...r, date: new Date(r.date).toISOString() }))
-      sorted.sort((a,b)=> new Date(b.date).getTime() - new Date(a.date).getTime())
-      const last = sorted[0]
-      const lastDate = new Date(last.date)
+      // normalize items to ISO dates
+      const items = [...all].map(r=>({ ...r, date: new Date(r.date).toISOString() }))
+      // if editing an existing reading (initial provided), exclude that exact entry
+      const filtered = initial ? items.filter(it => !(it.date === new Date(initial.date).toISOString() && Number(it.consumption) === Number(initial.consumption) && Number(it.production) === Number(initial.production))) : items
       const sel = new Date(dateISO)
-      // compute difference in days (rounded to nearest integer)
-      const diffMs = sel.getTime() - lastDate.getTime()
-      const days = Math.max(0, Math.round(diffMs / (1000*60*60*24)))
+      // find the most recent reading strictly before the selected date
+      const previous = filtered
+        .filter(it => new Date(it.date).getTime() < sel.getTime())
+        .sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      if (previous.length === 0){ update('days', 0); return }
+      const prevDate = new Date(previous[0].date)
+      const MS_PER_DAY = 1000 * 60 * 60 * 24
+      const diffMs = sel.getTime() - prevDate.getTime()
+      const days = Math.max(0, Math.floor(diffMs / MS_PER_DAY))
       update('days', days)
     }catch(e){ update('days', 0) }
   }
@@ -65,6 +71,20 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
     const consumption = Number(form.consumption || 0)
     const production = Number(form.production || 0)
     if (isNaN(consumption) || isNaN(production)) { showToast('Valores numéricos inválidos', 'error'); return }
+    // integrity checks: ensure meter and tariff exist
+    try{
+      const meterId = loadCurrentMeterId()
+      if (!meterId){ showToast('No hay medidor activo. Configure un medidor antes de guardar lecturas.', 'error'); return }
+      const mInfo = loadMeterInfo()
+      if (!mInfo || !mInfo.contador || !mInfo.correlativo || String(mInfo.contador).trim() === '' || String(mInfo.correlativo).trim() === ''){
+        showToast('Información del medidor incompleta (contador o correlativo faltante). Revise la sección Contadores y complete contador + correlativo.', 'error'); return
+      }
+      // Validate there is an active tariff matching the meter's distribuidora/company and service/segment
+      const company = (mInfo.distribuidora || '').toString() || undefined
+      const segment = (mInfo.tipo_servicio || '').toString() || undefined
+      const tariff = findActiveTariffForDate(new Date(form.date).toISOString(), company, segment)
+      if (!tariff){ showToast('No existe una tarifa activa para la fecha seleccionada y el medidor configurado. Añada o asigne una tarifa (empresa/segmento) antes de guardar.', 'error'); return }
+    }catch(e){ showToast('Error validando integridad del medidor/tarifa', 'error'); return }
     // create reading object
     const reading = { date: new Date(form.date).toISOString(), consumption, production }
     try{
@@ -108,8 +128,8 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
           <div className="text-sm text-gray-300">Días de servicio calculados desde la última lectura: <strong className="text-white">{form.days}</strong></div>
         </div>
         <div className="mt-4 flex justify-end gap-2">
-          <button className="glass-button px-3 py-2" onClick={onClose}>Cancelar</button>
-          <button className="glass-button px-3 py-2 bg-blue-600 text-white" onClick={handleSave}>Guardar</button>
+          <button className="glass-button p-2 flex items-center gap-2" title="Cancelar" aria-label="Cancelar" onClick={onClose}><X size={14} /><span className="hidden md:inline">Cancelar</span></button>
+          <button className="glass-button p-2 bg-blue-600 text-white flex items-center gap-2" title="Guardar" aria-label="Guardar" onClick={handleSave}><Save size={14} /><span className="hidden md:inline">Guardar</span></button>
         </div>
       </div>
     </div>

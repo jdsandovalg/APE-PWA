@@ -48,6 +48,12 @@ html, body, #root { overflow-x: hidden; }
 .btn-primary:hover{ filter:brightness(.95); transform: translateY(-2px) }
 .btn-ghost{ background: transparent; border: 1px solid rgba(255,255,255,0.06); padding:.4rem .8rem; border-radius:.5rem }
 
+/* Compact button font-size for consistent small UI */
+button, .glass-button, .btn-primary, .btn-ghost {
+  font-size: 9px;
+  line-height: 1;
+}
+
 .text-muted{ color: rgba(255,255,255,0.6) }
 
 /* scrollbars */
@@ -116,6 +122,26 @@ select { max-width: 100% }
   /* remove left margins that can create overflow */
   .card select, .card input, .card .ml-2 { margin-left: 0 !important }
 }
+
+/* Billing table: make tariff reference line extra small for clarity */
+.billing-table .text-2xs {
+  font-size: 8px;
+  line-height: 1;
+}
+
+/* Improve distribution and truncation for billing table headers/cells */
+.billing-table table { table-layout: fixed; }
+.billing-table th {
+  font-size: 12px;
+  line-height: 1.1;
+  padding: 6px 8px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: middle;
+}
+.billing-table td { padding: 6px 8px; }
+.billing-table .truncate { display: inline-block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap }
 
 /* Toasts */
 .ap-toast { opacity:1; transition: all 220ms ease; cursor: pointer }

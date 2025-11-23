@@ -264,6 +264,7 @@ export function createPreviousQuartersFromActive(count: number, company?: string
       header: {
         id,
         company: srcHeader.company,
+        companyCode: srcHeader.companyCode,
         segment: srcHeader.segment,
         period: { from: target.from, to: target.to },
         effectiveAt: target.from,

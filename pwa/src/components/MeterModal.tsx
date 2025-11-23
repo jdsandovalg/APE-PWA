@@ -1,6 +1,7 @@
 import React from 'react'
 import { MeterInfo, loadCompanies } from '../services/storage'
 import { showToast } from '../services/toast'
+import { X, Save } from 'lucide-react'
 
 type Props = {
   open: boolean,
@@ -89,8 +90,8 @@ export default function MeterModal({ open, initial, onClose, onSave, readOnlyPK=
           </label>
         </div>
         <div className="mt-4 flex justify-end gap-2">
-          <button className="glass-button px-3 py-2" onClick={onClose}>Cancelar</button>
-          <button className="glass-button px-3 py-2 bg-blue-600 text-white" onClick={handleSave}>Guardar</button>
+          <button className="glass-button p-2 flex items-center gap-2" title="Cancelar" aria-label="Cancelar" onClick={onClose}><X size={14} /><span className="hidden md:inline">Cancelar</span></button>
+          <button className="glass-button p-2 bg-blue-600 text-white flex items-center gap-2" title="Guardar" aria-label="Guardar" onClick={handleSave}><Save size={14} /><span className="hidden md:inline">Guardar</span></button>
         </div>
       </div>
     </div>
