@@ -12,18 +12,3 @@
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
-{
-  "version": 2,
-  "outputDirectory": "pwa/dist",
-  "builds": [
-    {
-      "src": "package.json",
-      "use": "@vercel/static-build",
-      "config": { "distDir": "dist" }
-    }
-  ],
-  "routes": [
-    { "src": "/sw.js", "headers": { "cache-control": "public, max-age=0, must-revalidate" }, "dest": "/sw.js" },
-    { "src": "/(.*)", "dest": "/index.html" }
-  ]
-}
