@@ -1,31 +1,18 @@
-name: Netlify Deploy
+name: Netlify Deploy (disabled)
+
+# This workflow previously deployed to Netlify. Netlify deploys were removed
+# from project scripts in favor of Vercel/FTP/rsync-based flows. The workflow
+# is kept as a disabled placeholder so historical references remain, but it
+# will only print a message when triggered.
 
 on:
-  push:
-    branches: [ main ]
+  workflow_dispatch: {}
 
 jobs:
-  build-and-deploy:
-    name: Build and deploy to Netlify
+  noop:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-
-      - name: Install and build PWA
+      - name: No-op
         run: |
-          npm --prefix pwa install
-          npm --prefix pwa run build
-
-      - name: Deploy to Netlify
-        uses: netlify/actions/cli@master
-        with:
-          args: deploy --dir=pwa/dist --prod --site ${{ secrets.NETLIFY_SITE_ID }}
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
+          echo "Netlify deploy workflow is disabled for this repository."
+          echo "Use pwa/deploy_via_ftp.sh, pwa/deploy_to_mounted.sh or configure Vercel."

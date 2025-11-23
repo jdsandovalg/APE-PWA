@@ -1,0 +1,2 @@
+REMOVED: This file previously contained a Netlify auth token and has been redacted for security.
+If you need to configure deploy secrets, store them in your CI provider (GitHub Secrets, Vercel dashboard, etc.).

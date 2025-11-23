@@ -59,7 +59,7 @@ A continuación, las opciones con sus ventajas/desventajas y flujo de trabajo re
 - Contras: requiere una pequeña función de backend (serverless) para generar la URL pre-firmada.
 
 Flujo:
-1. Cliente pide a backend (ej. función Netlify) una URL pre-firmada para `PUT` con `Key` = `user/{contador}/{filename}`.
+1. Cliente pide a backend (ej. una función serverless) una URL pre-firmada para `PUT` con `Key` = `user/{contador}/{filename}`.
 2. Backend genera la URL (usando credenciales del bucket) y la devuelve.
 3. Cliente hace `PUT` con `Content-Type: application/json` y sube el JSON.
 4. Si el `PUT` responde 200/201, cliente guarda `apenergia:meter_sync:{contador}` y opcionalmente llama a un endpoint para actualizar un índice.
@@ -132,21 +132,21 @@ Flujo: cliente hace `PUT /dav/{user}/{contador}/{filename}.json` con autenticaci
 - Nunca incrustes tokens permanentes en código o repositorios.
 - Usa presigned URLs o OAuth cuando sea posible.
 - Si hay un token comprometido (como el token en `netfily.sh`), revócalo inmediatamente y reemplázalo.
-- Guarda `NETLIFY_AUTH_TOKEN` u otros secretos en GitHub Secrets para CI/CD.
+-- Guarda secretos sensibles (p. ej. `NETLIFY_AUTH_TOKEN`) en GitHub Secrets o en el panel de tu proveedor de CI/CD.
 
-## 8) Implementación mínima recomendada — opción A (S3 presigned) con Netlify Functions
+## 8) Implementación mínima recomendada — opción A (S3 presigned) con funciones serverless
 ¿Por qué?
-- Tú ya estás usando Netlify para hospedar la PWA -> puedes añadir una función serverless para firmar uploads.
+- Las funciones serverless permiten generar URLs pre-firmadas desde el backend sin exponer credenciales al cliente.
 - No hay tokens en el cliente, sólo URLs de corta vida.
 
 Pasos:
 1. Crear bucket S3 (o DigitalOcean Spaces) y habilitar CORS para tu dominio.
-2. Añadir una Netlify Function `getPresigned` en `pwa/netlify/functions/getPresigned.js` que reciba `key` y devuelva URL.
+2. Añadir una función serverless `getPresigned` (por ejemplo en `pwa/api/getPresigned`) que reciba `key` y devuelva URL.
 3. En `Navbar` (Export), añadir la opción `Subir a repositorio` que:
-   - arma el nombre de archivo (según convención),
-   - solicita la URL a la función,
-   - hace `PUT` del JSON al URL,
-   - actualiza `localStorage` con `apenergia:meter_sync:{contador}`.
+  - arma el nombre de archivo (según convención),
+  - solicita la URL a la función serverless,
+  - hace `PUT` del JSON al URL,
+  - actualiza `localStorage` con `apenergia:meter_sync:{contador}`.
 4. (Opcional) Llamar a otra función para actualizar el índice `indexes/{contador}.json`.
 
 ## 9) Código cliente de ejemplo (upload con presigned url)
@@ -154,7 +154,7 @@ Pasos:
 async function uploadBackup(fileJson, contador, correlativo){
   const filename = `${contador}_${correlativo}_${new Date().toISOString().replace(/[:.-]/g,'').slice(0,15)}.json`
   // pedir presigned url
-  const res = await fetch(`/.netlify/functions/getPresigned`, {
+  const res = await fetch(`/api/getPresigned`, {
     method: 'POST',
     headers: {'Content-Type':'application/json'},
     body: JSON.stringify({ key: `backups/${contador}/${filename}` })
@@ -168,7 +168,7 @@ async function uploadBackup(fileJson, contador, correlativo){
 ```
 
 ## 10) Pasos siguientes que puedo implementar por ti
-- Implementar la función serverless para presigned URLs (Netlify Function) y probarla.
+-- Implementar la función serverless para presigned URLs y probarla.
 - Añadir al `Navbar` una opción `Subir a repositorio` que use ese flujo y muestre toasts de progreso.
 - Implementar (opcional) la escritura de un `indexes/{contador}.json` desde la función serverless tras confirmar el upload.
 
@@ -187,7 +187,7 @@ rclone copy pwa/RESPALDOS_PROPOSAL_ES.md onedrive:Backups/APE/ -v
 
 Si quieres, implemento la opción que prefieras:
 - Si quieres lo más rápido (sin backend): implemento subida a **Dropbox/Google Drive** (OAuth) desde la PWA.
-- Si quieres lo más robusto y escalable: implemento funciones Netlify que generen **presigned URLs** y el flujo cliente para subir a S3/Spaces.
+-- Si quieres lo más robusto y escalable: implemento funciones serverless que generen **presigned URLs** y el flujo cliente para subir a S3/Spaces.
 - Si prefieres usar **GitHub** para historial y UI, implemento subida vía API a `backups/{contador}/` en un repo.
 
 Dime cuál prefieres y lo implemento en el repositorio (`pwa/`) y lo dejo listo para que lo pruebes. ¡Si prefieres que te guíe para subir este mismo archivo a tu OneDrive ahora, dime y te doy los pasos rápidos para hacerlo desde tu Mac (o puedo ejecutar `rclone` si me autorizas a hacerlo aquí)!

@@ -1,2 +1,4 @@
-npm run build
-NETLIFY_AUTH_TOKEN=nfp_g2k4HauQig539rcerbQCkGx7n8CWQHZu067c npx netlify deploy --prod --dir=dist --site=becf03c1-b495-476e-beea-0d845899650f
+#!/usr/bin/env bash
+# REMOVED: This file previously contained a Netlify token and deploy command.
+# For security, the sensitive content was redacted. Use CI secrets (GitHub Actions,
+# Vercel dashboard, or environment variables) for deploy credentials instead.

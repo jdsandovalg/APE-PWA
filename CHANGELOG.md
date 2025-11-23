@@ -8,7 +8,7 @@ Todas las notas de cambios notables del proyecto.
 - Cambiado: UI más compacta (botones icon-first, tamaños de fuente reducidos para tablas y cabeceras de modal a 10px).
 - Mejorado: accesibilidad y comportamiento de modales — `role="dialog"`, `aria-modal`, cierre con `Escape`, enfoque programático al botón de cerrar y restauración del foco.
 - Arreglo: se eliminó/archivó la carpeta duplicada accidental `pwa/APE-PWA` (movida a `~/APE-PWA.backup`) y se registró la eliminación en Git.
-- Infra: script de despliegue `pwa/deploy_from_pwa.sh` revisado — helpers para `npm run build`, commit/push y deploy a Netlify (usa `NETLIFY_AUTH_TOKEN` o archivo `.netlify_token`).
+- Infra: script de despliegue `pwa/deploy_from_pwa.sh` revisado — helpers para `npm run build` y commit/push. Netlify-specific deploy steps were removed; use Vercel or the provided FTP/rsync helpers.
 - Build: generación de `pwa/dist` y `vite preview` corriendo localmente (por defecto en http://localhost:4173/).
 
 ### Notas de despliegue
@@ -17,11 +17,11 @@ Todas las notas de cambios notables del proyecto.
 
 ```bash
 cd pwa
-export NETLIFY_AUTH_TOKEN="<tu_token>"
-./deploy_from_pwa.sh -m "chore(deploy): release v0.1.0"
+npm --prefix . run build
+# Use pwa/deploy_via_ftp.sh or configure Vercel for automatic deploys
 ```
 
-- Para solo push sin desplegar a Netlify:
+-- Para solo push sin desplegar automáticamente:
 
 ```bash
 cd pwa
