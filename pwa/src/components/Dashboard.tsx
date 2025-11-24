@@ -3,6 +3,7 @@ import { loadReadings, computeDeltas, findActiveTariffForDate, createPreviousQua
 import MeterModal from './MeterModal'
 import ConfirmModal from './ConfirmModal'
 import CompaniesModal from './CompaniesModal'
+import SupabaseSyncModal from './SupabaseSyncModal'
 import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
 import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Edit, Users, Upload, Download, X, Plus } from 'lucide-react'
@@ -22,6 +23,7 @@ export default function Dashboard(){
   const [showMigrateConfirm, setShowMigrateConfirm] = React.useState(false)
   const [pendingCreateQuarters, setPendingCreateQuarters] = React.useState<number | null>(null)
   const [showCompaniesModal, setShowCompaniesModal] = React.useState(false)
+  const [showSupabaseModal, setShowSupabaseModal] = React.useState(false)
 
   // Run one-time migration automatically when Dashboard mounts, if legacy data exists.
   React.useEffect(()=>{
@@ -399,6 +401,7 @@ export default function Dashboard(){
               }}><Edit size={14} /></button>
               <div className="flex gap-2">
                 <button className="glass-button p-2 no-print" title="Exportar PDF" aria-label="Exportar PDF" onClick={handleExportPDF}><Download size={14} /></button>
+                <button className="glass-button p-2 no-print" title="Sync Supabase" aria-label="Sync Supabase" onClick={()=>setShowSupabaseModal(true)}>Sync</button>
               </div>
             </div>
           </div>
@@ -643,6 +646,9 @@ export default function Dashboard(){
           )}
           {showCompaniesModal && (
             <CompaniesModal open={showCompaniesModal} onClose={()=>setShowCompaniesModal(false)} />
+          )}
+          {showSupabaseModal && (
+            <SupabaseSyncModal open={showSupabaseModal} onClose={()=>setShowSupabaseModal(false)} />
           )}
           {migrationInfo && (
             <div className="mt-4 p-3 bg-emerald-900/30 border border-emerald-700 rounded text-sm text-white">
