@@ -108,7 +108,18 @@ export default function Dashboard(){
       // Build a minimal HTML page: copy current head (styles) and write our wrapper
       idoc.open()
       idoc.write('<!doctype html><html><head>')
-      idoc.write(document.head.innerHTML)
+      // Copy only safe head elements (styles, stylesheets, meta, title) to avoid executing scripts inside iframe
+      try{
+        // ensure relative URLs resolve inside iframe
+        idoc.write(`<base href="${location.origin}${location.pathname}" />`)
+        const safeHeadNodes = Array.from(document.head.querySelectorAll('link[rel="stylesheet"], style, meta, title'))
+        safeHeadNodes.forEach((n:any)=>{
+          try{ idoc.write(n.outerHTML) }catch(e){ /* ignore write errors */ }
+        })
+      }catch(e){
+        // fallback to minimal head if something goes wrong
+        try{ idoc.write(document.head ? document.head.innerHTML : '') }catch(_){ /* ignore */ }
+      }
       // Determine a solid background color to paint the PDF area (avoid translucent RGBA)
       const computedBg = getComputedStyle(document.body).backgroundColor || '#0b1222'
       const ensureOpaque = (bg:string) => {
