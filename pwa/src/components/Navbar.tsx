@@ -152,19 +152,19 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
 
       <nav className="glass-card p-2 mb-4">
         <div className="grid grid-cols-2 sm:flex gap-2 sm:justify-center overflow-x-auto">
-          <button onClick={()=>onNavigate('dashboard')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 w-full sm:w-auto`}>
+          <button onClick={()=>onNavigate('dashboard')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 w-full sm:w-auto`} style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
             <Home size={16} />
             <span className="font-medium text-sm text-left">Dashboard</span>
           </button>
-          <button onClick={()=>onNavigate('readings')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 w-full sm:w-auto`}>
+          <button onClick={()=>onNavigate('readings')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 w-full sm:w-auto`} style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
             <Calendar size={16} />
             <span className="font-medium text-sm text-left">Lecturas</span>
           </button>
-          <button onClick={()=>onNavigate('tariffs')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 w-full sm:w-auto`}>
+          <button onClick={()=>onNavigate('tariffs')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 w-full sm:w-auto`} style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
             <DollarSign size={16} />
             <span className="font-medium text-sm text-left">Tarifas</span>
           </button>
-          <button onClick={()=>onNavigate('billing')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 hover:bg-white/10 w-full sm:w-auto`}>
+          <button onClick={()=>onNavigate('billing')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 w-full sm:w-auto`} style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
             <Hammer size={16} />
             <span className="font-medium text-sm text-left">Facturación</span>
           </button>

@@ -5,7 +5,7 @@ import ConfirmModal from './ConfirmModal'
 import CompaniesModal from './CompaniesModal'
 import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
-import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Edit, Users, Upload, X, Plus } from 'lucide-react'
+import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Edit, Users, Upload, Download, X, Plus } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area, LabelList } from 'recharts'
 
 function currency(v:number){ return `Q ${v.toFixed(2)}` }
@@ -38,6 +38,218 @@ export default function Dashboard(){
 
   // check migration info so we can show a persistent banner after reload
   const [migrationInfo, setMigrationInfo] = React.useState<any | null>(()=> loadMigrationInfo())
+  const exportingRef = React.useRef(false)
+
+  const handleExportPDF = async () => {
+    if (typeof window === 'undefined') return
+    if (exportingRef.current) return
+    exportingRef.current = true
+    try{
+      const src = document.getElementById('dashboard-printable')
+      if (!src){ showToast('No se encontró la sección para exportar', 'error'); return }
+
+      // Clone the dashboard to avoid modifying the live UI
+      const clone = src.cloneNode(true) as HTMLElement
+
+      // Remove interactive controls from the clone (buttons, inputs) by removing elements with .no-print
+      clone.querySelectorAll && clone.querySelectorAll('.no-print').forEach(n=> n.parentNode && n.parentNode.removeChild(n))
+
+      // Create a full-width wrapper that paints the page background, and an inner container to center content
+      const wrapper = document.createElement('div')
+      wrapper.className = 'pdf-wrapper'
+      wrapper.style.width = '100%'
+      wrapper.style.minHeight = '11in'
+      wrapper.style.boxSizing = 'border-box'
+      wrapper.style.margin = '0'
+      // Default to dashboard (dark) look for the exported wrapper (ensure opaque background)
+      const pageBg = (getComputedStyle(document.body).backgroundColor) || '#0b1222'
+      wrapper.style.background = pageBg
+      wrapper.style.color = getComputedStyle(document.body).color || '#fff'
+      wrapper.style.fontFamily = getComputedStyle(document.body).fontFamily || 'Inter, system-ui, sans-serif'
+
+      const inner = document.createElement('div')
+      inner.className = 'pdf-inner'
+      inner.style.maxWidth = '7.8in'
+      inner.style.width = '100%'
+      inner.style.margin = '0 auto'
+      inner.style.boxSizing = 'border-box'
+      inner.style.padding = '18mm'
+      inner.appendChild(clone)
+      wrapper.appendChild(inner)
+
+      // Build billing table only for PDF (do not show in live Dashboard)
+      try{
+        const modHelper: any = await import('../utils/billingPdfHelper')
+        const buildBilling = modHelper && (modHelper.buildBillingTable || modHelper.default)
+        if (typeof buildBilling === 'function'){
+          const billingNode = buildBilling(readings, meterInfo)
+          if (billingNode){
+            try{ billingNode.style.pageBreakBefore = 'always' }catch(e){ /* ignore */ }
+            // append billing table into the inner centered container so wrapper background fills the page
+            inner.appendChild(billingNode)
+          }
+        }
+      }catch(err){ console.warn('No se pudo generar tabla de facturación para PDF', err) }
+
+      // Render inside a same-origin iframe to preserve styles and ensure proper rendering
+      // Append iframe off-screen
+      const iframe = document.createElement('iframe')
+      iframe.style.position = 'fixed'
+      iframe.style.left = '-10000px'
+      iframe.style.top = '0'
+      iframe.style.width = '8.5in'
+      iframe.style.height = '11in'
+      iframe.style.border = '0'
+      document.body.appendChild(iframe)
+
+      const idoc = iframe.contentDocument || iframe.contentWindow?.document
+      if (!idoc) throw new Error('No se pudo acceder al documento del iframe')
+
+      // Build a minimal HTML page: copy current head (styles) and write our wrapper
+      idoc.open()
+      idoc.write('<!doctype html><html><head>')
+      idoc.write(document.head.innerHTML)
+      // Determine a solid background color to paint the PDF area (avoid translucent RGBA)
+      const computedBg = getComputedStyle(document.body).backgroundColor || '#0b1222'
+      const ensureOpaque = (bg:string) => {
+        // if rgba with alpha less than 1, fallback to dark default
+        try{
+          const m = bg.match(/rgba?\(([^)]+)\)/)
+          if (!m) return bg
+          const parts = m[1].split(',').map(p=>p.trim())
+          if (parts.length===4){
+            const a = parseFloat(parts[3])
+            if (isFinite(a) && a < 1) return '#0b1222'
+          }
+          return bg
+        }catch(e){ return bg }
+      }
+      const captureBg = ensureOpaque(computedBg)
+
+      // Inject table-specific print styles to better match Billing.tsx and ensure inner content expands
+      idoc.write(`<style>
+        body{display:flex;justify-content:center;align-items:flex-start;margin:0;padding:0;background:${captureBg}}
+        html{background:${captureBg}}
+        .pdf-root{width:100%;display:block}
+        /* Ensure root and wrapper occupy full printable page area */
+        .pdf-root, body, html { width:100%; height:100%; }
+        /* Billing table print tweaks */
+        .billing-table table{width:100%;border-collapse:collapse;font-size:11px}
+        .billing-table thead th{background:rgba(255,255,255,0.06);color:#fff;padding:6px;border:1px solid rgba(255,255,255,0.06);text-align:center}
+        .billing-table tbody td{padding:6px;border:1px solid rgba(255,255,255,0.04);vertical-align:top}
+        .billing-table thead{display:table-header-group}
+        .billing-table tbody{display:table-row-group}
+        .billing-table tr{page-break-inside:avoid;break-inside:avoid}
+        .text-2xs{font-size:9px;color:rgba(156,163,175,1)}
+        .font-medium{font-weight:600}
+        @media print{ .billing-table table{font-size:10px} }
+        /* Make inner content expand to available page width and force internal elements to fill it */
+        .pdf-inner{width:100%;box-sizing:border-box}
+        .pdf-inner .card, .pdf-inner .glass-card, .pdf-inner .billing-table, .pdf-inner table{width:100% !important;max-width:100% !important}
+        .pdf-inner svg, .pdf-inner canvas, .pdf-inner img{width:100% !important;height:auto !important}
+        .pdf-inner .grid-cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr)) !important}
+      </style>`)
+      idoc.write('</head><body></body></html>')
+      idoc.close()
+
+      // Append wrapper to iframe body (wrap with a root div to control layout)
+      const iframeBody = idoc.body
+      const root = idoc.createElement('div')
+      root.className = 'pdf-root'
+      root.appendChild(wrapper)
+      iframeBody.appendChild(root)
+
+      // Ensure cards are kept together (avoid page breaks inside cards)
+      try{
+        const cards = wrapper.querySelectorAll('.card, .glass-card')
+        cards.forEach((c:any)=>{
+          c.style.pageBreakInside = 'avoid'
+          c.style.breakInside = 'avoid'
+          c.style.webkitColumnBreakInside = 'avoid'
+        })
+      }catch(e){ /* ignore */ }
+
+      // Inline SVG text styles so chart labels are visible in the rendered canvas
+      try{
+        const svgs = wrapper.querySelectorAll('svg')
+        svgs.forEach((svg: any) => {
+          // Apply computed styles to each <text> node inside the svg
+          const texts = svg.querySelectorAll('text')
+          texts.forEach((t: any) => {
+            try{
+              const cs = window.getComputedStyle(t)
+              if (cs.fill) t.setAttribute('fill', cs.color || cs.fill)
+              if (cs.fontSize) t.setAttribute('font-size', cs.fontSize)
+              if (cs.fontFamily) t.setAttribute('font-family', cs.fontFamily)
+              t.style.fill = cs.color || cs.fill
+            }catch(e){ /* ignore */ }
+          })
+        })
+      }catch(e){ /* ignore */ }
+
+
+      // Give browser a moment to render fonts/images inside the iframe
+      await new Promise(res => setTimeout(res, 700))
+
+      // Force orientation to landscape for exported PDFs (user requested fixed landscape)
+      let orientation: 'portrait' | 'landscape' = 'landscape'
+
+      // If landscape, resize the iframe to match letter landscape so capture fills page
+      try{
+        if (orientation === 'landscape'){
+          iframe.style.width = '11in'
+          iframe.style.height = '8.5in'
+          // increase inner maxWidth and slightly reduce padding to use more horizontal space
+          try{ inner.style.maxWidth = '10.5in'; inner.style.padding = '12mm' }catch(e){ /* ignore */ }
+        } else {
+          iframe.style.width = '8.5in'
+          iframe.style.height = '11in'
+          try{ inner.style.maxWidth = '7.8in'; inner.style.padding = '18mm' }catch(e){ /* ignore */ }
+        }
+      }catch(e){ /* ignore */ }
+
+      const mod: any = await import('html2pdf.js')
+      const html2pdf = mod && (mod.default || mod)
+      const filename = `ficha-${meterInfo?.contador || 'sincont'}-${new Date().toISOString().split('T')[0]}.pdf`
+
+      await html2pdf().from(iframeBody).set({
+        margin: 0.3,
+        filename,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, backgroundColor: captureBg },
+        jsPDF: { unit: 'in', format: 'letter', orientation },
+        pagebreak: { mode: ['css', 'legacy'] }
+      }).save()
+
+      // cleanup
+      document.body.removeChild(iframe)
+    }catch(e:any){
+      console.error('PDF export error:', e)
+      // try to show a readable message
+      const msg = (e && e.message) ? e.message : String(e)
+      showToast(`Error al generar el PDF: ${msg}`, 'error')
+      // attempt a simple fallback: try rendering the wrapper directly if iframe failed
+      try{
+        console.info('Intentando fallback: render directo del wrapper')
+        const mod2: any = await import('html2pdf.js')
+        const html2pdfb = mod2 && (mod2.default || mod2)
+        if (html2pdfb){
+          // append wrapper to body directly and try
+          document.body.appendChild(wrapper)
+          await html2pdfb().from(wrapper).set({
+            margin: 0.3,
+            filename: `ficha-${meterInfo?.contador || 'sincont'}-${new Date().toISOString().split('T')[0]}.pdf`,
+            image: { type: 'jpeg', quality: 0.95 },
+            html2canvas: { scale: 2, useCORS: true },
+            jsPDF: { unit: 'in', format: 'letter', orientation }
+          }).save()
+          document.body.removeChild(wrapper)
+        }
+      }catch(fallbackErr){
+        console.error('Fallback also failed:', fallbackErr)
+      }
+    }finally{ exportingRef.current = false }
+  }
   const thisMonth = new Date().getMonth()
   let consumptionMonth = 0
   let productionMonth = 0
@@ -152,7 +364,7 @@ export default function Dashboard(){
   }catch(e){ chartRows = []; cumulativeRows = [] }
 
   return (
-    <section>
+    <section id="dashboard-printable">
       <div className="grid grid-cards gap-4 sm:grid-cols-1 md:grid-cols-2">
         {/* Buttons to manage meter info: create new or update existing */}
         <div className="card min-h-28">
@@ -161,7 +373,7 @@ export default function Dashboard(){
               <h3 className="text-xs text-gray-300">Medidor / Información</h3>
               <div className="mt-2 text-xs text-gray-200">Contador: <strong>{meterInfo.contador}</strong> · Correlativo: <strong>{meterInfo.correlativo}</strong></div>
             </div>
-            <div className="ml-4 flex flex-col gap-2 items-end">
+              <div className="ml-4 flex flex-col gap-2 items-end">
               <button className="glass-button p-2" title="Crear nuevo contador" aria-label="Crear nuevo contador" onClick={()=>{
                 // open modal in create mode (empty form); use companies master for default distribuidora
                 let defaultDistrib = 'EEGSA'
@@ -174,6 +386,9 @@ export default function Dashboard(){
                 setModalInitialMeter(meterInfo)
                 setShowMeterModal(true)
               }}><Edit size={14} /></button>
+              <div className="flex gap-2">
+                <button className="glass-button p-2 no-print" title="Exportar PDF" aria-label="Exportar PDF" onClick={handleExportPDF}><Download size={14} /></button>
+              </div>
             </div>
           </div>
         </div>
@@ -293,17 +508,17 @@ export default function Dashboard(){
             <Zap className="w-5 h-5 text-yellow-400" />
             Producción neta por periodo (Entregado - Recibido)
           </h3>
-          <div style={{ width: '100%', height: 300 }}>
+          <div style={{ width: '100%', height: 220 }}>
             <ResponsiveContainer>
               <LineChart data={chartRows} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10 }} />
-                <YAxis tick={{ fill: 'rgba(255,255,255,0.8)' }} />
+                <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.95)', fontSize: 9 }} />
+                <YAxis tick={{ fill: 'rgba(255,255,255,0.95)', fontSize: 9 }} />
                 <Tooltip formatter={(value: any) => `${value} kWh`} itemStyle={{ color: '#fff' }} contentStyle={{ background: '#0b1222', borderColor: 'rgba(255,255,255,0.06)' }} />
-                <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.7)' }} />
-                <Line type="monotone" dataKey="net" name="Neto (kWh)" stroke="#60a5fa" strokeWidth={3} dot={{ r: 3 }} />
-                <Line type="monotone" dataKey="production" name="Producción" stroke="#34d399" strokeWidth={2} dot={false} />
-                <Line type="monotone" dataKey="consumption" name="Consumo" stroke="#fb7185" strokeWidth={2} dot={false} />
+                <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.85)' }} />
+                <Line type="monotone" dataKey="net" name="Neto (kWh)" stroke="#38bdf8" strokeWidth={3} dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey="production" name="Producción" stroke="#34d399" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey="consumption" name="Consumo" stroke="#fb7185" strokeWidth={2.5} dot={false} isAnimationActive={false} />
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -315,19 +530,19 @@ export default function Dashboard(){
             <Zap className="w-5 h-5 text-yellow-400" />
             Recibida kWh/día (promedio)
           </h3>
-          <div style={{ width: '100%', height: 300 }}>
+          <div style={{ width: '100%', height: 200 }}>
             <ResponsiveContainer>
               <LineChart data={chartRowsAvg || []} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10 }} />
-                <YAxis tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10 }} />
+                <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.95)', fontSize: 9 }} />
+                <YAxis tick={{ fill: 'rgba(255,255,255,0.95)', fontSize: 9 }} />
                 <Tooltip formatter={(value: any, name: any, props: any) => {
                   if (name === 'avg') return [`${Number(value).toFixed(2)} kWh/d`, 'Promedio']
                   return [`${value} kWh`, name]
                 }} itemStyle={{ color: '#fff' }} contentStyle={{ background: '#0b1222', borderColor: 'rgba(255,255,255,0.06)' }} />
-                <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.7)' }} />
-                <Line type="monotone" dataKey="avg" name="kWh/día (avg)" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false}>
-                  <LabelList dataKey="avg" position="top" style={{ fontSize: 8, fill: 'rgba(255,255,255,0.9)' }} formatter={(v:any)=> v==null?'-':Number(v).toFixed(2)} />
+                <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.85)' }} />
+                <Line type="monotone" dataKey="avg" name="kWh/día (avg)" stroke="#f59e0b" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls={true}>
+                  <LabelList dataKey="avg" position="top" style={{ fontSize: 8, fill: 'rgba(255,255,255,0.95)' }} formatter={(v:any)=> v==null?'-':Number(v).toFixed(2)} />
                 </Line>
               </LineChart>
             </ResponsiveContainer>
@@ -340,19 +555,19 @@ export default function Dashboard(){
             <Zap className="w-5 h-5 text-yellow-400" />
             Entregada kWh/día (promedio)
           </h3>
-          <div style={{ width: '100%', height: 300 }}>
+          <div style={{ width: '100%', height: 200 }}>
             <ResponsiveContainer>
               <LineChart data={chartRowsAvgProd || []} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10 }} />
-                <YAxis tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10 }} />
+                <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 8 }} />
+                <YAxis tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 8 }} />
                 <Tooltip formatter={(value: any, name: any) => {
                   if (name === 'avg') return [`${Number(value).toFixed(2)} kWh/d`, 'Promedio']
                   return [`${value} kWh`, name]
                 }} itemStyle={{ color: '#fff' }} contentStyle={{ background: '#0b1222', borderColor: 'rgba(255,255,255,0.06)' }} />
                 <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.7)' }} />
                 <Line type="monotone" dataKey="avg" name="kWh/día (avg)" stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false}>
-                  <LabelList dataKey="avg" position="top" style={{ fontSize: 8, fill: 'rgba(255,255,255,0.9)' }} formatter={(v:any)=> v==null?'-':Number(v).toFixed(2)} />
+                  <LabelList dataKey="avg" position="top" style={{ fontSize: 7, fill: 'rgba(255,255,255,0.9)' }} formatter={(v:any)=> v==null?'-':Number(v).toFixed(2)} />
                 </Line>
               </LineChart>
             </ResponsiveContainer>
@@ -365,12 +580,12 @@ export default function Dashboard(){
             <Zap className="w-5 h-5 text-yellow-400" />
             Saldo acumulado (kWh)
           </h3>
-          <div className="mt-2" style={{ width: '100%', height: 240 }}>
+          <div className="mt-2" style={{ width: '100%', height: 180 }}>
             <ResponsiveContainer>
               <AreaChart data={cumulativeRows} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 10 }} />
-                <YAxis tick={{ fill: 'rgba(255,255,255,0.8)' }} />
+                <XAxis dataKey="date" tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 8 }} />
+                <YAxis tick={{ fill: 'rgba(255,255,255,0.8)', fontSize: 8 }} />
                 <Tooltip formatter={(value: any) => `${value} kWh`} itemStyle={{ color: '#fff' }} contentStyle={{ background: '#0b1222', borderColor: 'rgba(255,255,255,0.06)' }} />
                 <Legend wrapperStyle={{ color: 'rgba(255,255,255,0.7)' }} />
                 <Area type="monotone" dataKey="positive" name="Saldo positivo (kWh)" stroke="#34d399" fill="#134e4a" fillOpacity={0.6} />
@@ -379,6 +594,7 @@ export default function Dashboard(){
             </ResponsiveContainer>
           </div>
         </div>
+            {/* Facturación table removed from live UI; generated only at PDF export */}
           {showMeterModal && (
             <MeterModal
               open={showMeterModal}
