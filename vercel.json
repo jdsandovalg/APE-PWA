@@ -9,6 +9,10 @@
   ],
   "routes": [
     { "handle": "filesystem" },
+    { "src": "/sw.js", "dest": "/sw.js" },
+    { "src": "/manifest.json", "dest": "/manifest.json" },
+    { "src": "/:file(.*)\\.(js|css|json|png|jpg|jpeg|svg|ico|webmanifest)", "dest": "/:file.$2" },
+    { "src": "/", "dest": "/index.html" },
     { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
