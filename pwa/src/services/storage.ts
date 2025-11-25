@@ -105,7 +105,8 @@ export type TariffSet = { header: TariffHeader, rates: TariffDetail }
 export type CompanyInfo = {
   id: string,
   name: string,
-  code?: string
+  code?: string,
+  deleted_at?: string  // Soft delete
 }
 
 const COMPANIES_KEY = 'apenergia:companies'
@@ -122,7 +123,9 @@ export function loadCompanies(): CompanyInfo[]{
       try{ localStorage.setItem(COMPANIES_KEY, JSON.stringify(seed)) }catch(e){}
       return seed
     }
-    return JSON.parse(raw)
+    const parsed = JSON.parse(raw)
+    // Filter out soft deleted
+    return parsed.filter((c: CompanyInfo) => !c.deleted_at)
   }catch(e){ return [] }
 }
 
@@ -178,7 +181,8 @@ export function loadTariffs(): TariffSet[]{
           }
         })
       }catch(e){}
-      return parsed
+      // Filter out soft deleted
+      return parsed.filter((t: TariffSet) => !t.header.deleted_at)
     }
     if (parsed && typeof parsed === 'object'){
       if ('rate' in parsed){

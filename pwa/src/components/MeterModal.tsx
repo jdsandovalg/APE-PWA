@@ -40,23 +40,23 @@ export default function MeterModal({ open, initial, onClose, onSave, readOnlyPK=
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="glass-card max-w-md sm:max-w-lg w-full p-6 z-10 text-white">
-        <h3 className="text-lg font-semibold mb-3 text-white">Información del contador</h3>
-        <div className="grid grid-cols-1 gap-3">
-          <label className="text-sm text-white">Contador
-            <input disabled={readOnlyPK} className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-2 py-2 mt-1" placeholder="Contador" value={form.contador} onChange={e=>update('contador', e.target.value)} />
+      <div className="glass-card max-w-md sm:max-w-lg w-full p-4 z-10 text-white max-h-[80vh] overflow-y-auto">
+        <h3 className="text-base font-semibold mb-2 text-white">Información del contador</h3>
+        <div className="grid grid-cols-1 gap-2">
+          <label className="text-xs text-white">Contador
+            <input disabled={readOnlyPK} className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" placeholder="Contador" value={form.contador} onChange={e=>update('contador', e.target.value)} />
           </label>
-          <label className="text-sm text-white">Correlativo
-            <input disabled={readOnlyPK} className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-2 py-2 mt-1" placeholder="Correlativo" value={form.correlativo} onChange={e=>update('correlativo', e.target.value)} />
+          <label className="text-xs text-white">Correlativo
+            <input disabled={readOnlyPK} className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" placeholder="Correlativo" value={form.correlativo} onChange={e=>update('correlativo', e.target.value)} />
           </label>
-          <label className="text-sm text-white">Propietaria
-            <input className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-2 py-2 mt-1" placeholder="Propietaria" value={form.propietaria} onChange={e=>update('propietaria', e.target.value)} />
+          <label className="text-xs text-white">Propietaria
+            <input className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" placeholder="Propietaria" value={form.propietaria} onChange={e=>update('propietaria', e.target.value)} />
           </label>
-          <label className="text-sm text-white">NIT
-            <input className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-2 py-2 mt-1" placeholder="NIT" value={form.nit} onChange={e=>update('nit', e.target.value)} />
+          <label className="text-xs text-white">NIT
+            <input className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" placeholder="NIT" value={form.nit} onChange={e=>update('nit', e.target.value)} />
           </label>
-          <label className="text-sm text-white">Distribuidora
-            <select className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-2 py-2 mt-1" value={form.distribuidora} onChange={e=>update('distribuidora', e.target.value)}>
+          <label className="text-xs text-white">Distribuidora
+            <select className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" value={form.distribuidora} onChange={e=>update('distribuidora', e.target.value)}>
               {loadCompanies().length === 0 ? (
                 <>
                   <option value="EEGSA">EEGSA</option>
@@ -68,30 +68,30 @@ export default function MeterModal({ open, initial, onClose, onSave, readOnlyPK=
               )}
             </select>
           </label>
-          <label className="text-sm text-white">Tipo servicio
+          <label className="text-xs text-white">Tipo servicio
             {(() => {
               try{
                 const comps = loadCompanies()
                 const codes = Array.from(new Set(comps.map(c=> c.code).filter(Boolean)))
                 if (codes.length>0){
                   return (
-                    <select className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-2 py-2 mt-1" value={form.tipo_servicio} onChange={e=>update('tipo_servicio', e.target.value)}>
+                    <select className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" value={form.tipo_servicio} onChange={e=>update('tipo_servicio', e.target.value)}>
                       <option value="">(seleccionar)</option>
                       {codes.map(c=> (<option key={c} value={c}>{c}</option>))}
                     </select>
                   )
                 }
               }catch(e){}
-              return (<input className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-2 py-2 mt-1" placeholder="Tipo servicio" value={form.tipo_servicio} onChange={e=>update('tipo_servicio', e.target.value)} />)
+              return (<input className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" placeholder="Tipo servicio" value={form.tipo_servicio} onChange={e=>update('tipo_servicio', e.target.value)} />)
             })()}
           </label>
-          <label className="text-sm text-white">Sistema (breve descripción)
-            <input className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-2 py-2 mt-1" placeholder="Sistema" value={form.sistema} onChange={e=>update('sistema', e.target.value)} />
+          <label className="text-xs text-white">Sistema (breve descripción)
+            <input className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" placeholder="Sistema" value={form.sistema} onChange={e=>update('sistema', e.target.value)} />
           </label>
         </div>
-        <div className="mt-4 flex justify-end gap-2">
-          <button className="glass-button p-2 flex items-center gap-2" title="Cancelar" aria-label="Cancelar" onClick={onClose}><X size={14} /><span className="hidden md:inline">Cancelar</span></button>
-          <button className="glass-button p-2 bg-blue-600 text-white flex items-center gap-2" title="Guardar" aria-label="Guardar" onClick={handleSave}><Save size={14} /><span className="hidden md:inline">Guardar</span></button>
+        <div className="mt-3 flex justify-end gap-2">
+          <button className="glass-button p-1 flex items-center gap-2 text-sm" title="Cancelar" aria-label="Cancelar" onClick={onClose}><X size={12} /><span className="hidden md:inline">Cancelar</span></button>
+          <button className="glass-button p-1 bg-blue-600 text-white flex items-center gap-2 text-sm" title="Guardar" aria-label="Guardar" onClick={handleSave}><Save size={12} /><span className="hidden md:inline">Guardar</span></button>
         </div>
       </div>
     </div>

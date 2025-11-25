@@ -113,23 +113,23 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="glass-card max-w-md sm:max-w-lg w-full p-6 z-10 text-white">
-        <h3 className="text-lg font-semibold mb-3">Agregar lectura manual</h3>
-        <div className="grid grid-cols-1 gap-3">
-          <label className="text-sm text-white">Fecha
-            <input type="date" className="w-full bg-white/5 text-white border border-white/10 rounded px-2 py-2 mt-1" value={form.date} onChange={e=>handleDateChange(e.target.value)} />
+      <div className="glass-card max-w-md sm:max-w-lg w-full p-4 z-10 text-white max-h-[80vh] overflow-y-auto">
+        <h3 className="text-base font-semibold mb-2">Agregar lectura manual</h3>
+        <div className="grid grid-cols-1 gap-2">
+          <label className="text-xs text-white">Fecha
+            <input type="date" className="w-full bg-white/5 text-white border border-white/10 rounded px-1 py-1 mt-1 text-sm" value={form.date} onChange={e=>handleDateChange(e.target.value)} />
           </label>
-          <label className="text-sm text-white">Energía recibida (kW)
-            <input type="number" step="any" min="0" className="w-full bg-white/5 text-white border border-white/10 rounded px-2 py-2 mt-1" value={form.consumption} onChange={e=>update('consumption', e.target.value)} />
+          <label className="text-xs text-white">Energía recibida (kW)
+            <input type="number" step="any" min="0" className="w-full bg-white/5 text-white border border-white/10 rounded px-1 py-1 mt-1 text-sm" value={form.consumption} onChange={e=>update('consumption', e.target.value)} />
           </label>
-          <label className="text-sm text-white">Energía entregada (kW)
-            <input type="number" step="any" min="0" className="w-full bg-white/5 text-white border border-white/10 rounded px-2 py-2 mt-1" value={form.production} onChange={e=>update('production', e.target.value)} />
+          <label className="text-xs text-white">Energía entregada (kW)
+            <input type="number" step="any" min="0" className="w-full bg-white/5 text-white border border-white/10 rounded px-1 py-1 mt-1 text-sm" value={form.production} onChange={e=>update('production', e.target.value)} />
           </label>
-          <div className="text-sm text-gray-300">Días de servicio calculados desde la última lectura: <strong className="text-white">{form.days}</strong></div>
+          <div className="text-xs text-gray-300">Días de servicio calculados desde la última lectura: <strong className="text-white">{form.days}</strong></div>
         </div>
-        <div className="mt-4 flex justify-end gap-2">
-          <button className="glass-button p-2 flex items-center gap-2" title="Cancelar" aria-label="Cancelar" onClick={onClose}><X size={14} /><span className="hidden md:inline">Cancelar</span></button>
-          <button className="glass-button p-2 bg-blue-600 text-white flex items-center gap-2" title="Guardar" aria-label="Guardar" onClick={handleSave}><Save size={14} /><span className="hidden md:inline">Guardar</span></button>
+        <div className="mt-3 flex justify-end gap-2">
+          <button className="glass-button p-1 flex items-center gap-2 text-sm" title="Cancelar" aria-label="Cancelar" onClick={onClose}><X size={12} /><span className="hidden md:inline">Cancelar</span></button>
+          <button className="glass-button p-1 bg-blue-600 text-white flex items-center gap-2 text-sm" title="Guardar" aria-label="Guardar" onClick={handleSave}><Save size={12} /><span className="hidden md:inline">Guardar</span></button>
         </div>
       </div>
     </div>

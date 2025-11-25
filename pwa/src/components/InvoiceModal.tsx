@@ -71,25 +71,25 @@ export default function InvoiceModal({ open, onClose, row }: Props){
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
-      <div className="glass-card max-w-md sm:max-w-lg w-full p-6 z-10 text-white" role="dialog" aria-modal="true" aria-labelledby="invoice-title">
+      <div className="glass-card max-w-md sm:max-w-lg w-full p-4 z-10 text-white max-h-[80vh] overflow-y-auto" role="dialog" aria-modal="true" aria-labelledby="invoice-title">
         <div className="flex items-start justify-between">
           <div>
-            <h3 id="invoice-title" className="text-lg font-semibold">Detalle de Factura</h3>
-            <div className="text-sm text-gray-300">Fecha: {row.date || ''} — Consumo: {row.consumption_kWh ?? '-'} kWh</div>
-            <div className="text-sm text-gray-300">Tarifa: {invoice?.tariff?.header?.id || 'N/A'}</div>
+            <h3 id="invoice-title" className="text-base font-semibold">Detalle de Factura</h3>
+            <div className="text-xs text-gray-300">Fecha: {row.date || ''} — Consumo: {row.consumption_kWh ?? '-'} kWh</div>
+            <div className="text-xs text-gray-300">Tarifa: {invoice?.tariff?.header?.id || 'N/A'}</div>
           </div>
           <button ref={closeBtnRef} className="glass-button p-2" title="Cerrar" onClick={onClose}><X size={14} /></button>
         </div>
 
-        <div className="mt-4">
-          <div className="grid grid-cols-3 gap-2 text-sm text-gray-300">
+        <div className="mt-3">
+          <div className="grid grid-cols-3 gap-2 text-xs text-gray-300">
             <div className="font-medium">Concepto</div>
             <div className="font-medium">Valor / Tasa</div>
             <div className="font-medium text-right">Importe</div>
           </div>
           <div className="mt-2 space-y-2">
             {lines.map((l, i) => (
-              <div key={i} className="grid grid-cols-3 gap-2 text-sm items-center">
+              <div key={i} className="grid grid-cols-3 gap-2 text-xs items-center">
                 <div className="text-gray-200">{l.concept}</div>
                 <div className="text-gray-400">{l.rate}</div>
                 <div className="text-right text-gray-200">Q {Number(l.amount || 0).toFixed(2)}</div>
@@ -98,19 +98,19 @@ export default function InvoiceModal({ open, onClose, row }: Props){
           </div>
 
           {/* Lecturas asociadas (saldo anterior, recibido, entregado, saldo actual) */}
-          <div className="mt-4 border-t border-white/10 pt-3">
-            <div className="text-sm font-medium text-gray-300">Lecturas asociadas</div>
+          <div className="mt-3 border-t border-white/10 pt-3">
+            <div className="text-xs font-medium text-gray-300">Lecturas asociadas</div>
             <div className="mt-2 text-xs text-gray-400">Fecha: {row.date || ''}</div>
-            <div className="mt-3 text-sm text-gray-300">Lecturas</div>
+            <div className="mt-2 text-xs text-gray-300">Lecturas</div>
             <div className="mt-2 overflow-x-auto">
-              <table className="min-w-full text-left text-sm text-gray-200 table-fixed border-collapse">
+              <table className="min-w-full text-left text-xs text-gray-200 table-fixed border-collapse">
                 <thead>
                   <tr>
-                    <th className="p-2 text-2xs text-gray-300" style={{ fontSize: '10px' }}></th>
-                    <th className="p-2 text-2xs text-gray-300" style={{ fontSize: '10px' }}>Saldo Anterior (kWh)</th>
-                    <th className="p-2 text-2xs text-gray-300" style={{ fontSize: '10px' }}>Lectura Actual (kWh)</th>
-                    <th className="p-2 text-2xs text-gray-300" style={{ fontSize: '10px' }}>Saldo (kWh)</th>
-                    <th className="p-2 text-2xs text-gray-300" style={{ fontSize: '10px' }}>Resultado (kWh)</th>
+                    <th className="p-1 text-2xs text-gray-300" style={{ fontSize: '10px' }}></th>
+                    <th className="p-1 text-2xs text-gray-300" style={{ fontSize: '10px' }}>Saldo Anterior (kWh)</th>
+                    <th className="p-1 text-2xs text-gray-300" style={{ fontSize: '10px' }}>Lectura Actual (kWh)</th>
+                    <th className="p-1 text-2xs text-gray-300" style={{ fontSize: '10px' }}>Saldo (kWh)</th>
+                    <th className="p-1 text-2xs text-gray-300" style={{ fontSize: '10px' }}>Resultado (kWh)</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -122,17 +122,17 @@ export default function InvoiceModal({ open, onClose, row }: Props){
                       return (
                         <>
                           <tr className="align-top">
-                            <td className="p-2 font-medium">Consumo</td>
-                            <td className="p-2">{prevCons != null ? prevCons.toLocaleString() : '-'}</td>
-                            <td className="p-2">{currCons != null ? currCons.toLocaleString() : '-'}</td>
-                            <td className="p-2">{saldoCons != null ? Number(saldoCons).toLocaleString() : '-'}</td>
-                            <td className="p-2 text-lg font-semibold text-right" rowSpan={2}>{net != null ? (Number(net)).toLocaleString() : '-'}</td>
+                            <td className="p-1 font-medium">Consumo</td>
+                            <td className="p-1">{prevCons != null ? prevCons.toLocaleString() : '-'}</td>
+                            <td className="p-1">{currCons != null ? currCons.toLocaleString() : '-'}</td>
+                            <td className="p-1">{saldoCons != null ? Number(saldoCons).toLocaleString() : '-'}</td>
+                            <td className="p-1 text-base font-semibold text-right" rowSpan={2}>{net != null ? (Number(net)).toLocaleString() : '-'}</td>
                           </tr>
                           <tr className="align-top">
-                            <td className="p-2 font-medium">Producción</td>
-                            <td className="p-2">{prevProd != null ? prevProd.toLocaleString() : '-'}</td>
-                            <td className="p-2">{currProd != null ? currProd.toLocaleString() : '-'}</td>
-                            <td className="p-2">{saldoProd != null ? Number(saldoProd).toLocaleString() : '-'}</td>
+                            <td className="p-1 font-medium">Producción</td>
+                            <td className="p-1">{prevProd != null ? prevProd.toLocaleString() : '-'}</td>
+                            <td className="p-1">{currProd != null ? currProd.toLocaleString() : '-'}</td>
+                            <td className="p-1">{saldoProd != null ? Number(saldoProd).toLocaleString() : '-'}</td>
                           </tr>
                         </>
                       )
@@ -144,9 +144,9 @@ export default function InvoiceModal({ open, onClose, row }: Props){
             </div>
           </div>
 
-          <div className="mt-4 border-t border-white/10 pt-3 flex justify-end items-center">
-            <div className="text-sm text-gray-300 mr-4">Total</div>
-            <div className="text-lg font-semibold">Q {total.toFixed(2)}</div>
+          <div className="mt-3 border-t border-white/10 pt-3 flex justify-end items-center">
+            <div className="text-xs text-gray-300 mr-4">Total</div>
+            <div className="text-base font-semibold">Q {total.toFixed(2)}</div>
           </div>
         </div>
 

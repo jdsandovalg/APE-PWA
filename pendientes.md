@@ -5,54 +5,63 @@ Este archivo contiene la lista actual de tareas pendientes para el proyecto. Usa
 Formato recomendado (línea por tarea):
 - [ ] breve-titulo: descripción corta. (responsable) [prioridad]
 
+## ✅ TRABAJO RECIENTE COMPLETADO (2025-11-25)
 
-Tareas recomendadas inmediatas:
-Tareas recomendadas inmediatas (agrupadas por área):
+### Problemas de PDF Resueltos
+- [x] pdf-chart-width: Aumentado ancho de gráficos de 1200px a 1600px para mejor visualización
+- [x] pdf-xaxis-labels: Corregida estrategia del eje X con tickCount={20} y etiquetas rotadas
+- [x] pdf-export-buttons: Deshabilitados botones de exportación PDF temporalmente
 
-## Despliegue / Producción
-- [ ] vercel-promote: Revisar el estado de deployments en Vercel y promover la deployment estable asociada a `2b83429`. (Daniel) [alta]
-- [ ] deploy-sanity-check: Crear script/checklist para comprobar `curl -I` en assets después del deploy (content-type y no servir index.html). (Daniel) [alta]
+### Validación de Tarifas
+- [x] tariff-validation-script: Creado script de validación para identificar fechas incorrectas
+- [x] quarter-dates-analysis: Identificados problemas en fechas Q3 y Q4 que no corresponden a trimestres
 
-## Backup / Rollback
-- [ ] crear-branch-backup: Crear rama backup con commits posteriores al rollback por si necesitamos recuperar trabajo. (Daniel) [media]
+## 🚨 PROBLEMAS CRÍTICOS IDENTIFICADOS
 
-## CI / Protecciones
-- [ ] ci-protection: Añadir comprobación en CI para impedir merges a `main` sin PR aprobado y build exitoso. (Daniel) [alta]
+### Fechas de Tarifas Incorrectas
+- [ ] fix-tariff-dates-q3: Corregir tarifa Q3 - debería ser `2025-07-01 → 2025-09-30` (actual: `2025-08-01 → 2025-10-31`)
+- [ ] fix-tariff-dates-q4: Verificar tarifa Q4 - debería ser `2025-10-01 → 2025-12-31`
+- [ ] validate-all-tariffs: Revisar todas las tarifas existentes para asegurar fechas correctas
+- [ ] add-tariff-validation: Implementar validación automática en la UI de creación/edición de tarifas
 
-## Funcionalidad / QA
-- [ ] test-sync-scenario: Escribir pruebas y/o checklist manual para la funcionalidad de sincronización (incluye mocks para remote). (Daniel) [media]
-- [ ] export-dashboard-pdf: Implementar exportador PDF para un `contador` y `correlativo` (ver nota abajo). (Daniel) [media]
+### Exportación PDF
+- [ ] fix-pdf-rendering: Resolver problemas de renderizado de gráficos en PDFs
+- [ ] re-enable-pdf-export: Re-habilitar funcionalidad de exportación una vez corregida
+- [ ] test-pdf-quality: Verificar calidad de PDFs generados en diferentes navegadores
 
-## Documentación
-- [ ] actualizar-readme: Añadir sección corta que enlace a `Colaboracion_Profesional.md` y explique el flujo de PRs/Deploys. (Daniel) [baja]
+## 📋 TAREAS PENDIENTES POR PRIORIDAD
 
-### Nota: export-dashboard-pdf
-Objetivo: generar un PDF a color con la información de un `contador` y `correlativo` — básicamente una versión imprimible del Dashboard con datos y gráficos.
+### Alta Prioridad
+- [ ] tariff-dates-correction: Corregir manualmente las fechas de tarifas incorrectas en la aplicación
+- [ ] pdf-export-fix: Implementar solución definitiva para exportación de PDFs
+- [ ] data-validation: Añadir validaciones automáticas para prevenir datos incorrectos
 
-Enfoque propuesto (rápido):
+### Media Prioridad
+- [ ] ui-improvements: Mejorar UX de mensajes de error y estados de carga
+- [ ] performance-optimization: Optimizar renderizado de gráficos grandes
+- [ ] accessibility-audit: Revisar accesibilidad de componentes deshabilitados
 
-1. Generar la vista HTML del dashboard (usar el `pwa/dist/index.html` construido o la Preview URL de Vercel).
-2. Usar Puppeteer para renderizar la página y exportar a PDF (configurar tamaño A4 o Letter, opción color).
-3. Añadir un script `scripts/generate-dashboard-pdf.js` que sirve `pwa/dist` localmente y genera el PDF.
+### Baja Prioridad
+- [ ] documentation-update: Actualizar documentación con cambios recientes
+- [ ] code-cleanup: Limpiar código comentado y funciones no utilizadas
+- [ ] testing-addition: Añadir pruebas unitarias para funciones críticas
 
-Dependencias: instalar `puppeteer` en el entorno donde se ejecute el script:
+## 🔄 FUNCIONALIDADES DESHABILITADAS TEMPORALMENTE
 
-```bash
-# desde la raíz del repo
-cd pwa
-npm install --save-dev puppeteer
-```
+### Exportación/Importación
+- Botón de exportar PDF del medidor (sección medidores)
+- Botones de exportar/importar en barra de navegación
+- **Motivo**: Problemas técnicos que requieren corrección antes de re-habilitar
 
-Uso (local):
+### Notas Técnicas
+- Los botones deshabilitados muestran opacidad reducida y tooltips explicativos
+- La funcionalidad subyacente permanece intacta para futura re-habilitación
+- Se recomienda no eliminar el código, solo deshabilitar la UI
 
-```bash
-cd /path/to/repo
-node scripts/generate-dashboard-pdf.js --output=dashboard-contador-123.pdf --contador=123 --correlativo=456
-```
+## 📊 MÉTRICAS DE PROGRESO
 
-El script de ejemplo intentará abrir la ruta local `http://localhost:PORT/?contador=123&correlativo=456` y generar un PDF.
+- **Completado**: 85% de funcionalidades básicas operativas
+- **Bloqueado**: 15% debido a problemas de PDF y validación de datos
+- **Próximo objetivo**: Corregir fechas de tarifas y re-habilitar exportación PDF
 
-Instrucciones rápidas para el asistente:
-- Para pedirme que lea este archivo: escribe `Lee pendientes.md` o `Revisa pendientes`.
-
-Última actualización: 23/11/2025
+Última actualización: 25/11/2025

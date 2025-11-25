@@ -2,15 +2,16 @@ import React from 'react'
 import { loadReadings, computeDeltas, findActiveTariffForDate, createPreviousQuartersFromActive, loadMeterInfo, loadMeters, loadCurrentMeterId, saveMeters, saveCurrentMeterId, migrateLegacyReadingsToCurrentMeter, loadMigrationInfo, clearMigrationInfo, loadCompanies } from '../services/storage'
 import MeterModal from './MeterModal'
 import ConfirmModal from './ConfirmModal'
-import CompaniesModal from './CompaniesModal'
 import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
-import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Edit, Users, Upload, Download, X, Plus } from 'lucide-react'
+import { getCompaniesCount, getCompaniesList, syncCompaniesFromSupabase, getTariffsCount, getTariffsList, syncTariffsFromSupabase, getReadingsCount, getReadingsList, syncReadingsFromSupabase } from '../services/supabase'
+import { exportPDF } from '../utils/pdfExport'
+import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Edit, Users, Upload, Download, X, Plus, Building2, Gauge, Settings } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area, LabelList } from 'recharts'
 
 function currency(v:number){ return `Q ${v.toFixed(2)}` }
 
-export default function Dashboard(){
+export default function Dashboard({ onNavigate }: { onNavigate: (view: string) => void }){
   const readings = loadReadings()
   const [metersMap, setMetersMap] = React.useState<Record<string, any>>(() => loadMeters())
   const [currentMeterId, setCurrentMeterId] = React.useState<string>(() => loadCurrentMeterId())
@@ -21,7 +22,15 @@ export default function Dashboard(){
   const [createQuartersCount, setCreateQuartersCount] = React.useState<number>(2)
   const [showMigrateConfirm, setShowMigrateConfirm] = React.useState(false)
   const [pendingCreateQuarters, setPendingCreateQuarters] = React.useState<number | null>(null)
-  const [showCompaniesModal, setShowCompaniesModal] = React.useState(false)
+
+  const [companiesCount, setCompaniesCount] = React.useState<number>(0)
+  const [companiesList, setCompaniesList] = React.useState<{ id: string; code: string; name: string }[]>([])
+
+  const [tariffsCount, setTariffsCount] = React.useState<number>(0)
+  const [tariffsList, setTariffsList] = React.useState<{ id: string; company: string; segment: string; period_from: string; period_to: string }[]>([])
+
+  const [readingsCount, setReadingsCount] = React.useState<number>(0)
+  const [readingsList, setReadingsList] = React.useState<{ meter_id: string; date: string; consumption: number; production: number; credit: number }[]>([])
 
   // Run one-time migration automatically when Dashboard mounts, if legacy data exists.
   React.useEffect(()=>{
@@ -40,226 +49,79 @@ export default function Dashboard(){
   const [migrationInfo, setMigrationInfo] = React.useState<any | null>(()=> loadMigrationInfo())
   const exportingRef = React.useRef(false)
 
+  // Sync companies from Supabase on mount
+  React.useEffect(() => {
+    syncCompaniesFromSupabase().catch(err => {
+      console.error('Sync failed:', err)
+      showToast('Error sincronizando compañías, usando datos locales', 'warning')
+    })
+  }, [])
+
+  // Sync tariffs from Supabase on mount
+  React.useEffect(() => {
+    syncTariffsFromSupabase().catch(err => {
+      console.error('Sync tariffs failed:', err)
+      showToast('Error sincronizando tarifas, usando datos locales', 'warning')
+    })
+  }, [])
+
+  // Sync readings from Supabase on mount
+  React.useEffect(() => {
+    syncReadingsFromSupabase().catch(err => {
+      console.error('Sync readings failed:', err)
+      showToast('Error sincronizando lecturas, usando datos locales', 'warning')
+    })
+  }, [])
+
+  // Load companies count and list from Supabase
+  React.useEffect(() => {
+    const loadData = async () => {
+      const count = await getCompaniesCount()
+      const list = await getCompaniesList()
+      setCompaniesCount(count)
+      setCompaniesList(list)
+    }
+    loadData()
+  }, [])
+
+  // Load tariffs count and list from Supabase
+  React.useEffect(() => {
+    const loadData = async () => {
+      const count = await getTariffsCount()
+      const list = await getTariffsList()
+      setTariffsCount(count)
+      setTariffsList(list)
+    }
+    loadData()
+  }, [])
+
+  // Load readings count and list from Supabase
+  React.useEffect(() => {
+    const loadData = async () => {
+      const count = await getReadingsCount()
+      const list = await getReadingsList()
+      setReadingsCount(count)
+      setReadingsList(list)
+    }
+    loadData()
+  }, [])
+
+  const reloadTariffsData = async () => {
+    const count = await getTariffsCount()
+    const list = await getTariffsList()
+    setTariffsCount(count)
+    setTariffsList(list)
+  }
+
+  const reloadReadingsData = async () => {
+    const count = await getReadingsCount()
+    const list = await getReadingsList()
+    setReadingsCount(count)
+    setReadingsList(list)
+  }
+
   const handleExportPDF = async () => {
-    if (typeof window === 'undefined') return
-    if (exportingRef.current) return
-    exportingRef.current = true
-    try{
-      const src = document.getElementById('dashboard-printable')
-      if (!src){ showToast('No se encontró la sección para exportar', 'error'); return }
-
-      // Clone the dashboard to avoid modifying the live UI
-      const clone = src.cloneNode(true) as HTMLElement
-
-      // Remove interactive controls from the clone (buttons, inputs) by removing elements with .no-print
-      clone.querySelectorAll && clone.querySelectorAll('.no-print').forEach(n=> n.parentNode && n.parentNode.removeChild(n))
-
-      // Create a full-width wrapper that paints the page background, and an inner container to center content
-      const wrapper = document.createElement('div')
-      wrapper.className = 'pdf-wrapper'
-      wrapper.style.width = '100%'
-      wrapper.style.minHeight = '11in'
-      wrapper.style.boxSizing = 'border-box'
-      wrapper.style.margin = '0'
-      // Default to dashboard (dark) look for the exported wrapper (ensure opaque background)
-      const pageBg = (getComputedStyle(document.body).backgroundColor) || '#0b1222'
-      wrapper.style.background = pageBg
-      wrapper.style.color = getComputedStyle(document.body).color || '#fff'
-      wrapper.style.fontFamily = getComputedStyle(document.body).fontFamily || 'Inter, system-ui, sans-serif'
-
-      const inner = document.createElement('div')
-      inner.className = 'pdf-inner'
-      inner.style.maxWidth = '7.8in'
-      inner.style.width = '100%'
-      inner.style.margin = '0 auto'
-      inner.style.boxSizing = 'border-box'
-      inner.style.padding = '18mm'
-      inner.appendChild(clone)
-      wrapper.appendChild(inner)
-
-      // Build billing table only for PDF (do not show in live Dashboard)
-      try{
-        const modHelper: any = await import('../utils/billingPdfHelper')
-        const buildBilling = modHelper && (modHelper.buildBillingTable || modHelper.default)
-        if (typeof buildBilling === 'function'){
-          const billingNode = buildBilling(readings, meterInfo)
-          if (billingNode){
-            try{ billingNode.style.pageBreakBefore = 'always' }catch(e){ /* ignore */ }
-            // append billing table into the inner centered container so wrapper background fills the page
-            inner.appendChild(billingNode)
-          }
-        }
-      }catch(err){ console.warn('No se pudo generar tabla de facturación para PDF', err) }
-
-      // Render inside a same-origin iframe to preserve styles and ensure proper rendering
-      // Append iframe off-screen
-      const iframe = document.createElement('iframe')
-      iframe.style.position = 'fixed'
-      iframe.style.left = '-10000px'
-      iframe.style.top = '0'
-      iframe.style.width = '8.5in'
-      iframe.style.height = '11in'
-      iframe.style.border = '0'
-      document.body.appendChild(iframe)
-
-      const idoc = iframe.contentDocument || iframe.contentWindow?.document
-      if (!idoc) throw new Error('No se pudo acceder al documento del iframe')
-
-      // Build a minimal HTML page: copy current head (styles) and write our wrapper
-      idoc.open()
-      idoc.write('<!doctype html><html><head>')
-      // Copy only safe head elements (styles, stylesheets, meta, title) to avoid executing scripts inside iframe
-      try{
-        // ensure relative URLs resolve inside iframe
-        idoc.write(`<base href="${location.origin}${location.pathname}" />`)
-        const safeHeadNodes = Array.from(document.head.querySelectorAll('link[rel="stylesheet"], style, meta, title'))
-        safeHeadNodes.forEach((n:any)=>{
-          try{ idoc.write(n.outerHTML) }catch(e){ /* ignore write errors */ }
-        })
-      }catch(e){
-        // fallback to minimal head if something goes wrong
-        try{ idoc.write(document.head ? document.head.innerHTML : '') }catch(_){ /* ignore */ }
-      }
-      // Determine a solid background color to paint the PDF area (avoid translucent RGBA)
-      const computedBg = getComputedStyle(document.body).backgroundColor || '#0b1222'
-      const ensureOpaque = (bg:string) => {
-        // if rgba with alpha less than 1, fallback to dark default
-        try{
-          const m = bg.match(/rgba?\(([^)]+)\)/)
-          if (!m) return bg
-          const parts = m[1].split(',').map(p=>p.trim())
-          if (parts.length===4){
-            const a = parseFloat(parts[3])
-            if (isFinite(a) && a < 1) return '#0b1222'
-          }
-          return bg
-        }catch(e){ return bg }
-      }
-      const captureBg = ensureOpaque(computedBg)
-
-      // Inject table-specific print styles to better match Billing.tsx and ensure inner content expands
-      idoc.write(`<style>
-        body{display:flex;justify-content:center;align-items:flex-start;margin:0;padding:0;background:${captureBg}}
-        html{background:${captureBg}}
-        .pdf-root{width:100%;display:block}
-        /* Ensure root and wrapper occupy full printable page area */
-        .pdf-root, body, html { width:100%; height:100%; }
-        /* Billing table print tweaks */
-        .billing-table table{width:100%;border-collapse:collapse;font-size:11px}
-        .billing-table thead th{background:rgba(255,255,255,0.06);color:#fff;padding:6px;border:1px solid rgba(255,255,255,0.06);text-align:center}
-        .billing-table tbody td{padding:6px;border:1px solid rgba(255,255,255,0.04);vertical-align:top}
-        .billing-table thead{display:table-header-group}
-        .billing-table tbody{display:table-row-group}
-        .billing-table tr{page-break-inside:avoid;break-inside:avoid}
-        .text-2xs{font-size:9px;color:rgba(156,163,175,1)}
-        .font-medium{font-weight:600}
-        @media print{ .billing-table table{font-size:10px} }
-        /* Make inner content expand to available page width and force internal elements to fill it */
-        .pdf-inner{width:100%;box-sizing:border-box}
-        .pdf-inner .card, .pdf-inner .glass-card, .pdf-inner .billing-table, .pdf-inner table{width:100% !important;max-width:100% !important}
-        .pdf-inner svg, .pdf-inner canvas, .pdf-inner img{width:100% !important;height:auto !important}
-        .pdf-inner .grid-cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr)) !important}
-      </style>`)
-      idoc.write('</head><body></body></html>')
-      idoc.close()
-
-      // Append wrapper to iframe body (wrap with a root div to control layout)
-      const iframeBody = idoc.body
-      const root = idoc.createElement('div')
-      root.className = 'pdf-root'
-      root.appendChild(wrapper)
-      iframeBody.appendChild(root)
-
-      // Ensure cards are kept together (avoid page breaks inside cards)
-      try{
-        const cards = wrapper.querySelectorAll('.card, .glass-card')
-        cards.forEach((c:any)=>{
-          c.style.pageBreakInside = 'avoid'
-          c.style.breakInside = 'avoid'
-          c.style.webkitColumnBreakInside = 'avoid'
-        })
-      }catch(e){ /* ignore */ }
-
-      // Inline SVG text styles so chart labels are visible in the rendered canvas
-      try{
-        const svgs = wrapper.querySelectorAll('svg')
-        svgs.forEach((svg: any) => {
-          // Apply computed styles to each <text> node inside the svg
-          const texts = svg.querySelectorAll('text')
-          texts.forEach((t: any) => {
-            try{
-              const cs = window.getComputedStyle(t)
-              if (cs.fill) t.setAttribute('fill', cs.color || cs.fill)
-              if (cs.fontSize) t.setAttribute('font-size', cs.fontSize)
-              if (cs.fontFamily) t.setAttribute('font-family', cs.fontFamily)
-              t.style.fill = cs.color || cs.fill
-            }catch(e){ /* ignore */ }
-          })
-        })
-      }catch(e){ /* ignore */ }
-
-
-      // Give browser a moment to render fonts/images inside the iframe
-      await new Promise(res => setTimeout(res, 700))
-
-      // Force orientation to landscape for exported PDFs (user requested fixed landscape)
-      let orientation: 'portrait' | 'landscape' = 'landscape'
-
-      // If landscape, resize the iframe to match letter landscape so capture fills page
-      try{
-        if (orientation === 'landscape'){
-          iframe.style.width = '11in'
-          iframe.style.height = '8.5in'
-          // increase inner maxWidth and slightly reduce padding to use more horizontal space
-          try{ inner.style.maxWidth = '10.5in'; inner.style.padding = '12mm' }catch(e){ /* ignore */ }
-        } else {
-          iframe.style.width = '8.5in'
-          iframe.style.height = '11in'
-          try{ inner.style.maxWidth = '7.8in'; inner.style.padding = '18mm' }catch(e){ /* ignore */ }
-        }
-      }catch(e){ /* ignore */ }
-
-      const mod: any = await import('html2pdf.js')
-      const html2pdf = mod && (mod.default || mod)
-      const filename = `ficha-${meterInfo?.contador || 'sincont'}-${new Date().toISOString().split('T')[0]}.pdf`
-
-      await html2pdf().from(iframeBody).set({
-        margin: 0.3,
-        filename,
-        image: { type: 'jpeg', quality: 0.98 },
-        html2canvas: { scale: 2, useCORS: true, backgroundColor: captureBg },
-        jsPDF: { unit: 'in', format: 'letter', orientation },
-        pagebreak: { mode: ['css', 'legacy'] }
-      }).save()
-
-      // cleanup
-      document.body.removeChild(iframe)
-    }catch(e:any){
-      console.error('PDF export error:', e)
-      // try to show a readable message
-      const msg = (e && e.message) ? e.message : String(e)
-      showToast(`Error al generar el PDF: ${msg}`, 'error')
-      // attempt a simple fallback: try rendering the wrapper directly if iframe failed
-      try{
-        console.info('Intentando fallback: render directo del wrapper')
-        const mod2: any = await import('html2pdf.js')
-        const html2pdfb = mod2 && (mod2.default || mod2)
-        if (html2pdfb){
-          // append wrapper to body directly and try
-          document.body.appendChild(wrapper)
-          await html2pdfb().from(wrapper).set({
-            margin: 0.3,
-            filename: `ficha-${meterInfo?.contador || 'sincont'}-${new Date().toISOString().split('T')[0]}.pdf`,
-            image: { type: 'jpeg', quality: 0.95 },
-            html2canvas: { scale: 2, useCORS: true },
-            jsPDF: { unit: 'in', format: 'letter', orientation }
-          }).save()
-          document.body.removeChild(wrapper)
-        }
-      }catch(fallbackErr){
-        console.error('Fallback also failed:', fallbackErr)
-      }
-    }finally{ exportingRef.current = false }
+    await exportPDF()
   }
   const thisMonth = new Date().getMonth()
   let consumptionMonth = 0
@@ -385,32 +247,49 @@ export default function Dashboard(){
               <div className="mt-2 text-xs text-gray-200">Contador: <strong>{meterInfo.contador}</strong> · Correlativo: <strong>{meterInfo.correlativo}</strong></div>
             </div>
               <div className="ml-4 flex flex-col gap-2 items-end">
-              <button className="glass-button p-2" title="Crear nuevo contador" aria-label="Crear nuevo contador" onClick={()=>{
-                // open modal in create mode (empty form); use companies master for default distribuidora
-                let defaultDistrib = 'EEGSA'
-                try{ const comps = loadCompanies(); if (comps && comps.length>0) defaultDistrib = comps[0].id }catch(e){}
-                setModalInitialMeter({ contador: '', correlativo: '', propietaria: '', nit: '', distribuidora: defaultDistrib, tipo_servicio: '', sistema: '' })
-                setShowMeterModal(true)
-              }}><PlusCircle size={14} /></button>
-              <button className="glass-button p-2" title="Actualizar información" aria-label="Actualizar información" onClick={()=>{
-                // open modal in edit mode but make PK read-only
-                setModalInitialMeter(meterInfo)
-                setShowMeterModal(true)
-              }}><Edit size={14} /></button>
-                <div className="flex gap-2">
-                <button className="glass-button p-2 no-print" title="Exportar PDF" aria-label="Exportar PDF" onClick={handleExportPDF}><Download size={14} /></button>
-              </div>
+              <button className="glass-button p-2" title="Gestionar medidores" aria-label="Gestionar medidores" onClick={()=> onNavigate('meters')}><Settings size={14} /></button>
             </div>
           </div>
         </div>
         <div className="card min-h-28">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-xs text-gray-300">Maestro Tarifas</h3>
+              <h3 className="text-xs text-gray-300">Maestro de Compañías</h3>
               <p className="text-xs text-gray-400 mt-1">Gestiona empresas y códigos de tarifa</p>
             </div>
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-xs text-gray-500" title={companiesList.map(c => `${c.id} (${c.code}): ${c.name}`).join('\n')}>
+                {companiesCount} registros
+              </span>
+              <button className="glass-button p-2" title="Empresas / Códigos" aria-label="Empresas y códigos" onClick={()=> onNavigate('companies')}><Building2 size={14} /></button>
+            </div>
+          </div>
+        </div>
+        <div className="card min-h-28">
+          <div className="flex items-center justify-between">
             <div>
-              <button className="glass-button p-2" title="Empresas / Códigos" aria-label="Empresas y códigos" onClick={()=> setShowCompaniesModal(true)}><Users size={14} /></button>
+              <h3 className="text-xs text-gray-300">Tarifas</h3>
+              <p className="text-xs text-gray-400 mt-1">Gestiona tarifas por empresa y segmento</p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-xs text-gray-500" title={tariffsList.map(t => `${t.id}: ${t.company} ${t.segment} (${t.period_from} → ${t.period_to})`).join('\n')}>
+                {tariffsCount} registros
+              </span>
+              <button className="glass-button p-2" title="Tarifas" aria-label="Tarifas" onClick={()=> onNavigate('tariffs')}><DollarSign size={14} /></button>
+            </div>
+          </div>
+        </div>
+        <div className="card min-h-28">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-xs text-gray-300">Lecturas</h3>
+              <p className="text-xs text-gray-400 mt-1">Historial de lecturas del medidor</p>
+            </div>
+            <div className="flex flex-col items-end gap-1">
+              <span className="text-xs text-gray-500" title={readingsList.slice(0,10).map(r => `${r.date}: Cons ${r.consumption}, Prod ${r.production}`).join('\n') + (readingsList.length > 10 ? '\n... y más' : '')}>
+                {readingsCount} registros
+              </span>
+              <button className="glass-button p-2" title="Lecturas" aria-label="Lecturas" onClick={()=> onNavigate('readings')}><Gauge size={14} /></button>
             </div>
           </div>
         </div>
@@ -640,9 +519,6 @@ export default function Dashboard(){
                 setModalInitialMeter(null)
               }}
             />
-          )}
-          {showCompaniesModal && (
-            <CompaniesModal open={showCompaniesModal} onClose={()=>setShowCompaniesModal(false)} />
           )}
           
           {migrationInfo && (

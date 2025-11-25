@@ -124,10 +124,10 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
 
         <div className="flex items-center gap-2">
           <input ref={fileRef} type="file" accept="application/json" onChange={onFileChange} style={{ display: 'none' }} />
-          <button onClick={onImportClick} className="glass-button px-2 py-1 sm:px-3 sm:py-2 flex items-center gap-2" title="Importar datos">
+          <button onClick={onImportClick} className="glass-button px-2 py-1 sm:px-3 sm:py-2 flex items-center gap-2 opacity-50 cursor-not-allowed" title="Importar datos (deshabilitado)" disabled>
             <Upload size={16} />
           </button>
-          <button onClick={exportAll} className="glass-button px-2 py-1 sm:px-3 sm:py-2 flex items-center gap-2" title="Exportar datos">
+          <button onClick={exportAll} className="glass-button px-2 py-1 sm:px-3 sm:py-2 flex items-center gap-2 opacity-50 cursor-not-allowed" title="Exportar datos (deshabilitado)" disabled>
             <DownloadCloud size={16} />
           </button>
         </div>

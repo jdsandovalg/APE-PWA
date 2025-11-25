@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { loadTariffs, saveTariffs, TariffSet, TariffDetail, TariffHeader, loadCompanies } from '../services/storage'
-import { Save, Trash, PlusCircle, Upload, Edit, X } from 'lucide-react'
+import { Save, Trash, PlusCircle, Upload, Edit, X, RefreshCw } from 'lucide-react'
 import ConfirmModal from './ConfirmModal'
 import { showToast } from '../services/toast'
 
@@ -49,6 +49,8 @@ export default function Tariffs(){
     const next = [...items, s]
     persist(next)
     setSelectedIdx(next.length-1)
+    setModalForm(s)
+    setShowEditModal(true)
   }
 
   function requestRemoveAt(i:number){
@@ -105,7 +107,17 @@ export default function Tariffs(){
     }
   }
 
-  function saveChanges(){ persist(items) }
+  async function syncFromSupabase(){
+    try{
+      const { syncTariffsFromSupabase } = await import('../services/supabase')
+      await syncTariffsFromSupabase()
+      const t = loadTariffs()
+      setItems(t)
+      try{ showToast('Tarifas sincronizadas desde Supabase', 'success') }catch(e){}
+    }catch(err){
+      try{ showToast('Error sincronizando: '+String(err), 'error') }catch(e){}
+    }
+  }
 
   return (
     <>
@@ -115,6 +127,7 @@ export default function Tariffs(){
           <div className="flex items-center justify-between">
             <h3 className="text-lg">Trimestres / Tarifas</h3>
             <div className="flex gap-2">
+              <button title="Sincronizar desde Supabase" className="btn-ghost" onClick={syncFromSupabase}><RefreshCw size={16} /></button>
               <button title="Importar desde PDF detectado" className="btn-ghost" onClick={importFromJson}><Upload size={16} /></button>
               <button className="btn-primary" onClick={addNew}><PlusCircle size={16} /> Nuevo</button>
             </div>
@@ -122,13 +135,21 @@ export default function Tariffs(){
           <div className="mt-4 space-y-2">
             {items.length===0 && <div className="text-sm text-gray-400">No hay tarifas registradas.</div>}
             {items.map((it,idx)=> (
-              <div key={it.header.id} className={`p-2 rounded border w-full ${selectedIdx===idx? 'border-blue-400 bg-white/5':'border-transparent hover:border-gray-700'}`}>
-                <div className="flex justify-between items-center">
-                  <div>
+              <div key={it.header.id} className={`p-3 rounded border w-full ${selectedIdx===idx? 'border-blue-400 bg-white/5':'border-transparent hover:border-gray-700'}`}>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
                     <div className="font-medium">{it.header.company} — {it.header.segment}</div>
                     <div className="text-xs text-gray-400">{it.header.period.from} → {it.header.period.to}</div>
+                    <div className="mt-1 text-xs">
+                      <div className="grid grid-cols-2 gap-1">
+                        <span>Fijo: Q {it.rates.fixedCharge_Q?.toFixed(2) || '0.00'}</span>
+                        <span>Energía: Q {it.rates.energy_Q_per_kWh?.toFixed(4) || '0.0000'}/kWh</span>
+                        <span>Dist: Q {it.rates.distribution_Q_per_kWh?.toFixed(4) || '0.0000'}/kWh</span>
+                        <span>IVA: {it.rates.iva_percent || 0}%</span>
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 ml-2">
                     <button title="Editar" className="btn-ghost" onClick={()=>{ setSelectedIdx(idx); setModalForm(items[idx]); setShowEditModal(true) }}><Edit size={16} /></button>
                     <button aria-label={`Eliminar tarifa ${it.header.id}`} className="btn-ghost text-red-400 flex items-center justify-center p-1" onClick={()=>requestRemoveAt(idx)} title="Eliminar"><Trash size={14} /></button>
                   </div>
@@ -154,12 +175,12 @@ export default function Tariffs(){
       {showEditModal && modalForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/50" onClick={()=>setShowEditModal(false)} />
-          <div className="glass-card max-w-md sm:max-w-lg w-full p-6 z-10 text-white">
-            <h3 className="text-lg">Editar Tarifa — {modalForm.header.id}</h3>
-            <div className="grid grid-cols-1 gap-3 mt-3">
+          <div className="glass-card max-w-md sm:max-w-lg w-full p-4 z-10 text-white max-h-[80vh] overflow-y-auto">
+            <h3 className="text-base">Editar Tarifa — {modalForm.header.id}</h3>
+            <div className="grid grid-cols-2 gap-2 mt-2">
               <div>
-                <label className="block text-sm text-gray-300">Empresa</label>
-                <select className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" value={modalForm.header.company} onChange={e=> {
+                <label className="block text-xs text-gray-300">Empresa</label>
+                <select className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" value={modalForm.header.company} onChange={e=> {
                   const val = e.target.value
                   const comp = loadCompanies().find(c=> c.id === val)
                   setModalForm({ ...modalForm, header: { ...modalForm.header, company: val, companyCode: comp?.code || modalForm.header.companyCode } })
@@ -168,56 +189,52 @@ export default function Tariffs(){
                 </select>
               </div>
               <div>
-                <label className="block text-sm text-gray-300">Segmento</label>
-                <input value={modalForm.header.segment} onChange={e=> setModalForm({ ...modalForm, header: { ...modalForm.header, segment: e.target.value } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+                <label className="block text-xs text-gray-300">Segmento</label>
+                <input value={modalForm.header.segment} onChange={e=> setModalForm({ ...modalForm, header: { ...modalForm.header, segment: e.target.value } })} className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" />
               </div>
               <div>
-                <label className="block text-sm text-gray-300">Periodo desde</label>
-                <input type="date" value={modalForm.header.period.from} onChange={e=> setModalForm({ ...modalForm, header: { ...modalForm.header, period: { ...modalForm.header.period, from: e.target.value } } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+                <label className="block text-xs text-gray-300">Periodo desde</label>
+                <input type="date" value={modalForm.header.period.from} onChange={e=> setModalForm({ ...modalForm, header: { ...modalForm.header, period: { ...modalForm.header.period, from: e.target.value } } })} className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" />
               </div>
               <div>
-                <label className="block text-sm text-gray-300">Periodo hasta</label>
-                <input type="date" value={modalForm.header.period.to} onChange={e=> setModalForm({ ...modalForm, header: { ...modalForm.header, period: { ...modalForm.header.period, to: e.target.value } } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+                <label className="block text-xs text-gray-300">Periodo hasta</label>
+                <input type="date" value={modalForm.header.period.to} onChange={e=> setModalForm({ ...modalForm, header: { ...modalForm.header, period: { ...modalForm.header.period, to: e.target.value } } })} className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" />
               </div>
             </div>
 
-            <hr className="my-4 border-gray-700" />
+            <hr className="my-2 border-gray-700" />
 
-            <h4 className="font-medium">Detalles de tarifas (Q / %)</h4>
-              <div className="grid grid-cols-1 gap-3 mt-3">
+            <h4 className="font-medium text-sm">Detalles de tarifas (Q / %)</h4>
+              <div className="grid grid-cols-2 gap-2 mt-2">
               <div>
-                <label className="block text-sm text-gray-300">Cargo fijo (Q)</label>
-                <select className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" value={modalForm.header.company} onChange={e=> {
-                  const val = e.target.value
-                  const comp = loadCompanies().find(c=> c.id === val)
-                  setModalForm({ ...modalForm, header: { ...modalForm.header, company: val, companyCode: comp?.code || modalForm.header.companyCode } })
-                }}>
-                  {loadCompanies().map(c=> (<option key={c.id} value={c.id}>{c.id} — {c.name}{c.code? ` (${c.code})`:''}</option>))}
-                </select>
-                <label className="block text-sm text-gray-300">Energía (Q/kWh)</label>
-                <input type="number" step="0.000001" value={modalForm.rates.energy_Q_per_kWh} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, energy_Q_per_kWh: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+                <label className="block text-xs text-gray-300">Cargo fijo (Q)</label>
+                <input type="number" step="0.000001" value={modalForm.rates.fixedCharge_Q} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, fixedCharge_Q: Number(e.target.value) } })} className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" />
               </div>
               <div>
-                <label className="block text-sm text-gray-300">Distribución (Q/kWh)</label>
-                <input type="number" step="0.000001" value={modalForm.rates.distribution_Q_per_kWh} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, distribution_Q_per_kWh: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+                <label className="block text-xs text-gray-300">Energía (Q/kWh)</label>
+                <input type="number" step="0.000001" value={modalForm.rates.energy_Q_per_kWh} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, energy_Q_per_kWh: Number(e.target.value) } })} className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" />
               </div>
               <div>
-                <label className="block text-sm text-gray-300">Potencia (Q/kWh)</label>
-                <input type="number" step="0.000001" value={modalForm.rates.potencia_Q_per_kWh} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, potencia_Q_per_kWh: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+                <label className="block text-xs text-gray-300">Distribución (Q/kWh)</label>
+                <input type="number" step="0.000001" value={modalForm.rates.distribution_Q_per_kWh} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, distribution_Q_per_kWh: Number(e.target.value) } })} className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" />
               </div>
               <div>
-                <label className="block text-sm text-gray-300">Contribución A.P. (%)</label>
-                <input type="number" step="0.01" value={modalForm.rates.contrib_percent} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, contrib_percent: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+                <label className="block text-xs text-gray-300">Potencia (Q/kWh)</label>
+                <input type="number" step="0.000001" value={modalForm.rates.potencia_Q_per_kWh} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, potencia_Q_per_kWh: Number(e.target.value) } })} className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" />
               </div>
               <div>
-                <label className="block text-sm text-gray-300">IVA (%)</label>
-                <input type="number" step="0.01" value={modalForm.rates.iva_percent} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, iva_percent: Number(e.target.value) } })} className="mt-2 p-2 rounded bg-transparent border border-gray-700 w-full" />
+                <label className="block text-xs text-gray-300">Contribución A.P. (%)</label>
+                <input type="number" step="0.01" value={modalForm.rates.contrib_percent} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, contrib_percent: Number(e.target.value) } })} className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" />
+              </div>
+              <div>
+                <label className="block text-xs text-gray-300">IVA (%)</label>
+                <input type="number" step="0.01" value={modalForm.rates.iva_percent} onChange={e=> setModalForm({ ...modalForm, rates: { ...modalForm.rates, iva_percent: Number(e.target.value) } })} className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" />
               </div>
             </div>
 
-            <div className="mt-4 flex justify-end gap-2">
-              <button className="glass-button p-2 flex items-center gap-2" title="Cancelar" aria-label="Cancelar" onClick={()=> setShowEditModal(false)}><X size={14} /><span className="hidden md:inline">Cancelar</span></button>
-              <button className="glass-button p-2 bg-green-600 text-white flex items-center gap-2" title="Guardar tarifa" aria-label="Guardar tarifa" onClick={()=>{
+            <div className="mt-3 flex justify-end gap-2">
+              <button className="glass-button p-1 flex items-center gap-2 text-sm" title="Cancelar" aria-label="Cancelar" onClick={()=> { setShowEditModal(false); setSelectedIdx(null); }}><X size={12} /><span className="hidden md:inline">Cancelar</span></button>
+              <button className="glass-button p-1 bg-green-600 text-white flex items-center gap-2 text-sm" title="Guardar tarifa" aria-label="Guardar tarifa" onClick={()=>{
                 // persist modalForm back into items with validations
                 if (!modalForm) return
                 // required header fields
@@ -239,6 +256,7 @@ export default function Tariffs(){
                 persist(next)
                 setShowEditModal(false)
                 setModalForm(null)
+                setSelectedIdx(null)
               }}>Guardar</button>
             </div>
           </div>
