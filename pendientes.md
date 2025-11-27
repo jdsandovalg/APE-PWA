@@ -25,6 +25,11 @@ Formato recomendado (línea por tarea):
 - [x] companies-modal: `CompaniesModal` para creación y edición
 - [x] companies-ui: Interfaz limpia con lista y botones de acción
 
+### Corrección de Función get_invoices
+- [x] fix-get-invoices-cartesian-product: Corregida función `get_invoices` para filtrar tarifas por compañía del medidor
+- [x] meter-tariff-association: Implementada lógica para asociar correctamente medidores con tarifas de su distribuidora
+- [x] prevent-cartesian-product: Evitado producto cartesiano al agregar múltiples contadores de diferentes compañías
+
 ### Limpieza y Optimización
 - [x] test-components-removal: Eliminación de componentes de prueba (`TariffTester.tsx`, `BillingTest.tsx`, etc.)
 - [x] supabase-ts-simplification: Simplificación de `supabase.ts` - solo exporta cliente
@@ -82,8 +87,8 @@ Formato recomendado (línea por tarea):
 
 ## 📊 MÉTRICAS DE PROGRESO
 
-- **Completado**: 95% de funcionalidades básicas operativas
-- **Bloqueado**: 5% debido a problemas de PDF (pendiente para próxima sesión)
+- **Completado**: 97% de funcionalidades básicas operativas
+- **Bloqueado**: 3% debido a problemas de PDF (pendiente para próxima sesión)
 - **Próximo objetivo**: Corregir fechas de tarifas y resolver exportación PDF
 
 Última actualización: 27/11/2025

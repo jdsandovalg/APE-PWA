@@ -1,5 +1,6 @@
 -- DDL to create the get_invoices PostgreSQL function
 -- Run this in your Supabase SQL Editor to create the function
+-- CORRECTION: Now filters tariffs by meter company to avoid cartesian product when multiple companies exist
 
 CREATE OR REPLACE FUNCTION get_invoices(meter_id_param TEXT)
 RETURNS TABLE(
@@ -14,6 +15,7 @@ AS $$
 DECLARE
   delta_rec RECORD;
   tariff_rec RECORD;
+  meter_rec RECORD;
   rates JSONB;
   fixed_charge NUMERIC := 0;
   energy_rate NUMERIC := 0;
@@ -33,12 +35,34 @@ DECLARE
   total_due NUMERIC;
   inv JSONB;
 BEGIN
+  -- Get meter information including distribuidora (company)
+  SELECT * INTO meter_rec FROM meters WHERE id = meter_id_param OR contador = meter_id_param LIMIT 1;
+
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Meter with ID % not found', meter_id_param;
+  END IF;
+
   -- Create temp tables
   CREATE TEMP TABLE temp_readings AS
   SELECT * FROM readings WHERE meter_id = meter_id_param AND deleted_at IS NULL ORDER BY date;
 
+  -- Filter tariffs by the meter's distribuidora (company) to avoid cartesian product
+  -- This ensures we only use tariffs from the correct company for each meter
   CREATE TEMP TABLE temp_tariffs AS
-  SELECT * FROM tariffs WHERE deleted_at IS NULL;
+  SELECT * FROM tariffs
+  WHERE deleted_at IS NULL
+  AND company = meter_rec.distribuidora;
+
+  -- Compute deltas (assuming readings are ordered by date)
+  CREATE TEMP TABLE temp_deltas AS
+  SELECT
+    r2.date,
+    (r2.consumption - r1.consumption) AS consumption,
+    (r2.production - r1.production) AS production,
+    r2.credit AS credit
+  FROM temp_readings r1
+  JOIN temp_readings r2 ON r2.date > r1.date
+  WHERE NOT EXISTS (SELECT 1 FROM temp_readings r3 WHERE r3.date > r1.date AND r3.date < r2.date);
 
   -- Compute deltas (assuming readings are ordered by date)
   CREATE TEMP TABLE temp_deltas AS
