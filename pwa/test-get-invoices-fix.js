@@ -11,7 +11,9 @@ async function testGetInvoices() {
   console.log('🧪 Probando función get_invoices corregida...\n')
 
   try {
-    // Obtener medidores disponibles
+    // Verificar que podemos acceder a las tablas
+    console.log('🔍 Verificando acceso a tablas...')
+
     const { data: meters, error: metersError } = await supabase
       .from('meters')
       .select('id, contador, distribuidora')
@@ -35,7 +37,39 @@ async function testGetInvoices() {
     const testMeter = meters[0]
     console.log(`\n🎯 Probando con medidor: ${testMeter.contador} - Distribuidora: ${testMeter.distribuidora}\n`)
 
-    // Llamar a la función get_invoices
+    // Verificar que hay tarifas para esta compañía
+    const { data: tariffs, error: tariffsError } = await supabase
+      .from('tariffs')
+      .select('id, company, company_code, segment')
+      .eq('company', testMeter.distribuidora)
+      .is('deleted_at', null)
+      .limit(5)
+
+    if (tariffsError) {
+      console.error('❌ Error obteniendo tarifas:', tariffsError)
+    } else {
+      console.log(`📋 Tarifas disponibles para ${testMeter.distribuidora}: ${tariffs?.length || 0}`)
+      tariffs?.forEach(t => console.log(`  - ${t.id}: ${t.company} ${t.segment}`))
+    }
+
+    // Verificar que hay lecturas para este medidor
+    const { data: readings, error: readingsError } = await supabase
+      .from('readings')
+      .select('id, meter_id, date, consumption, production')
+      .eq('meter_id', testMeter.contador)
+      .is('deleted_at', null)
+      .order('date', { ascending: false })
+      .limit(5)
+
+    if (readingsError) {
+      console.error('❌ Error obteniendo lecturas:', readingsError)
+    } else {
+      console.log(`📋 Últimas lecturas para ${testMeter.contador}: ${readings?.length || 0}`)
+      readings?.forEach(r => console.log(`  - ${r.date}: Cons ${r.consumption}, Prod ${r.production}`))
+    }
+
+    // Ahora probar la función
+    console.log('\n🔧 Probando función get_invoices...')
     const { data: invoices, error: invoicesError } = await supabase
       .rpc('get_invoices', { meter_id_param: testMeter.contador })
 

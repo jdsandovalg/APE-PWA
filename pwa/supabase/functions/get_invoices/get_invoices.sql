@@ -36,7 +36,7 @@ DECLARE
   inv JSONB;
 BEGIN
   -- Get meter information including distribuidora (company)
-  SELECT * INTO meter_rec FROM meters WHERE id = meter_id_param OR contador = meter_id_param LIMIT 1;
+  SELECT * INTO meter_rec FROM meters WHERE id::text = meter_id_param OR contador = meter_id_param LIMIT 1;
 
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Meter with ID % not found', meter_id_param;
@@ -52,17 +52,6 @@ BEGIN
   SELECT * FROM tariffs
   WHERE deleted_at IS NULL
   AND company = meter_rec.distribuidora;
-
-  -- Compute deltas (assuming readings are ordered by date)
-  CREATE TEMP TABLE temp_deltas AS
-  SELECT
-    r2.date,
-    (r2.consumption - r1.consumption) AS consumption,
-    (r2.production - r1.production) AS production,
-    r2.credit AS credit
-  FROM temp_readings r1
-  JOIN temp_readings r2 ON r2.date > r1.date
-  WHERE NOT EXISTS (SELECT 1 FROM temp_readings r3 WHERE r3.date > r1.date AND r3.date < r2.date);
 
   -- Compute deltas (assuming readings are ordered by date)
   CREATE TEMP TABLE temp_deltas AS
