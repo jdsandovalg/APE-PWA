@@ -1,6 +1,7 @@
 import React from 'react'
 import { showToast } from '../services/toast'
 import { createCompany, updateCompany } from '../services/supabasePure'
+import { CompanyInfo } from '../types'
 import { Save, X } from 'lucide-react'
 
 type Props = {

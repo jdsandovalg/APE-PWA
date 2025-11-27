@@ -1,4 +1,6 @@
-type InvoiceBreakdown = {
+import { TariffSet, InvoiceBreakdown } from '../types'
+
+type InvoiceBreakdownLegacy = {
   consumption_kWh: number,
   production_kWh?: number,
   energy_charge_Q: number,

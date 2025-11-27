@@ -1,6 +1,7 @@
 import React from 'react'
 import { getAllCompanies, type CompanyRecord } from '../services/supabasePure'
 import { showToast } from '../services/toast'
+import { MeterInfo } from '../types'
 import { X, Save } from 'lucide-react'
 
 type Props = {

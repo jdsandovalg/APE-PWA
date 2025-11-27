@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react'
 import { getAllTariffs, createTariff, updateTariff, deleteTariff, getAllCompanies } from '../services/supabasePure'
+import { TariffDetail } from '../types'
 import { Save, Trash, PlusCircle, Edit, X } from 'lucide-react'
 import ConfirmModal from './ConfirmModal'
 import { showToast } from '../services/toast'
