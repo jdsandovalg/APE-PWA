@@ -1,5 +1,5 @@
 import React from 'react'
-import { MeterInfo, loadCompanies } from '../services/storage'
+import { getAllCompanies, type CompanyRecord } from '../services/supabasePure'
 import { showToast } from '../services/toast'
 import { X, Save } from 'lucide-react'
 
@@ -13,8 +13,29 @@ type Props = {
 
 export default function MeterModal({ open, initial, onClose, onSave, readOnlyPK=false }: Props){
   const [form, setForm] = React.useState<MeterInfo>(initial)
+  const [companies, setCompanies] = React.useState<CompanyRecord[]>([])
+  const [loading, setLoading] = React.useState(false)
 
   React.useEffect(()=>{ setForm(initial) }, [initial])
+
+  React.useEffect(() => {
+    if (open) {
+      loadCompanies()
+    }
+  }, [open])
+
+  async function loadCompanies() {
+    try {
+      setLoading(true)
+      const companiesData = await getAllCompanies()
+      setCompanies(companiesData)
+    } catch (error) {
+      console.error('Error loading companies:', error)
+      showToast('Error cargando compañías', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
 
   if (!open) return null
 
@@ -57,22 +78,21 @@ export default function MeterModal({ open, initial, onClose, onSave, readOnlyPK=
           </label>
           <label className="text-xs text-white">Distribuidora
             <select className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" value={form.distribuidora} onChange={e=>update('distribuidora', e.target.value)}>
-              {loadCompanies().length === 0 ? (
+              {companies.length === 0 ? (
                 <>
                   <option value="EEGSA">EEGSA</option>
                   <option value="Energuate - Deorsa">Energuate - Deorsa</option>
                   <option value="Energuate - Deocsa">Energuate - Deocsa</option>
                 </>
               ) : (
-                loadCompanies().map(c => (<option key={c.id} value={c.id}>{c.id} — {c.name}</option>))
+                companies.map(c => (<option key={c.id} value={c.id}>{c.id} — {c.name}</option>))
               )}
             </select>
           </label>
           <label className="text-xs text-white">Tipo servicio
             {(() => {
               try{
-                const comps = loadCompanies()
-                const codes = Array.from(new Set(comps.map(c=> c.code).filter(Boolean)))
+                const codes = Array.from(new Set(companies.map(c=> c.code).filter(Boolean)))
                 if (codes.length>0){
                   return (
                     <select className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" value={form.tipo_servicio} onChange={e=>update('tipo_servicio', e.target.value)}>

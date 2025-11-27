@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
-import { loadReadings } from '../services/storage'
+import { getReadings, type ReadingRecord } from '../services/supabasePure'
 
 type Props = {
   open: boolean
@@ -9,42 +9,22 @@ type Props = {
 }
 
 export default function InvoiceModal({ open, onClose, row }: Props){
-  if (!open || !row) return null
+  const [readings, setReadings] = React.useState<ReadingRecord[]>([])
 
-  const invoice = row.invoice || {}
-  const rates = invoice?.tariff?.rates || {}
-  const lines = [
-    { concept: 'Cargo fijo', rate: rates.fixedCharge_Q != null ? `${Number(rates.fixedCharge_Q).toFixed(4)} Q` : '-', amount: invoice.fixed_charge_Q || 0 },
-    { concept: 'Energía neta', rate: rates.energy_Q_per_kWh != null ? `${Number(rates.energy_Q_per_kWh).toFixed(6)} Q/kWh` : '-', amount: invoice.energy_charge_Q || 0 },
-    { concept: 'Distribución', rate: rates.distribution_Q_per_kWh != null ? `${Number(rates.distribution_Q_per_kWh).toFixed(6)} Q/kWh` : '-', amount: invoice.distribution_charge_Q || 0 },
-    { concept: 'Potencia', rate: rates.potencia_Q_per_kWh != null ? `${Number(rates.potencia_Q_per_kWh).toFixed(6)} Q/kWh` : '-', amount: invoice.potencia_charge_Q || 0 },
-    { concept: 'Contrib. A.P.', rate: rates.contrib_percent != null ? `${Number(rates.contrib_percent)}%` : '-', amount: invoice.contrib_amount_Q || 0 },
-    { concept: 'IVA', rate: rates.iva_percent != null ? `${Number(rates.iva_percent)}%` : '12%', amount: invoice.iva_amount_Q || 0 }
-  ]
-
-  const total = Number(invoice.total_due_Q || 0)
-
-  // Attempt to locate associated cumulative readings (original readings array)
-  // Billing builds rows from deltas where `row.date` is YYYY-MM-DD; find the matching
-  // reading in the cumulative readings and its previous entry to show balances.
-  let prevReading: any = null
-  let currReading: any = null
-  try{
-    const all = loadReadings()
-    const idx = all.findIndex((r:any)=> new Date(r.date).toISOString().split('T')[0] === (row.date || ''))
-    if (idx >= 0){
-      currReading = all[idx]
-      if (idx > 0) prevReading = all[idx-1]
+  React.useEffect(() => {
+    if (open) {
+      loadReadingsData()
     }
-  }catch(e){ /* ignore */ }
+  }, [open])
 
-  const prevCons = prevReading ? Number(prevReading.consumption || 0) : null
-  const prevProd = prevReading ? Number(prevReading.production || 0) : null
-  const currCons = currReading ? Number(currReading.consumption || 0) : null
-  const currProd = currReading ? Number(currReading.production || 0) : null
-  const recibido = (currCons != null) ? (currCons - (prevCons || 0)) : (row.invoice?.consumption_kWh ?? null)
-  const entregado = (currProd != null) ? (currProd - (prevProd || 0)) : (row.invoice?.production_kWh ?? null)
-
+  async function loadReadingsData() {
+    try {
+      const readingsData = await getReadings()
+      setReadings(readingsData)
+    } catch (error) {
+      console.error('Error loading readings:', error)
+    }
+  }
   // Close modal with Escape key for convenience
   useEffect(()=>{
     function onKey(e: KeyboardEvent){ if (e.key === 'Escape') onClose() }
@@ -68,6 +48,43 @@ export default function InvoiceModal({ open, onClose, row }: Props){
     }
   }, [open])
 
+  if (!open || !row) return null
+
+  const invoice = row.invoice || {}
+  const rates = invoice?.tariff || {}
+  const lines = [
+    { concept: 'Cargo fijo', rate: rates.fixed_charge_q != null ? `${Number(rates.fixed_charge_q).toFixed(4)} Q` : '-', amount: invoice.fixed_charge_Q || 0 },
+    { concept: 'Energía neta', rate: rates.energy_q_per_kwh != null ? `${Number(rates.energy_q_per_kwh).toFixed(6)} Q/kWh` : '-', amount: invoice.energy_charge_Q || 0 },
+    { concept: 'Distribución', rate: rates.distribution_q_per_kwh != null ? `${Number(rates.distribution_q_per_kwh).toFixed(6)} Q/kWh` : '-', amount: invoice.distribution_charge_Q || 0 },
+    { concept: 'Potencia', rate: rates.potencia_q_per_kwh != null ? `${Number(rates.potencia_q_per_kwh).toFixed(6)} Q/kW` : '-', amount: invoice.potencia_charge_Q || 0 },
+    { concept: 'Contrib. A.P.', rate: '-', amount: invoice.contrib_amount_Q || 0 },
+    { concept: 'IVA', rate: rates.iva_percent != null ? `${Number(rates.iva_percent)}%` : '12%', amount: invoice.iva_amount_Q || 0 }
+  ]
+
+  const total = Number(invoice.total_due_Q || 0)
+
+  // Attempt to locate associated cumulative readings (original readings array)
+  // Billing builds rows from deltas where `row.date` is YYYY-MM-DD; find the matching
+  // reading in the cumulative readings and its previous entry to show balances.
+  let prevReading: ReadingRecord | null = null
+  let currReading: ReadingRecord | null = null
+  try{
+    const all = readings
+    const idx = all.findIndex((r: ReadingRecord)=> new Date(r.date).toISOString().split('T')[0] === (row.date || ''))
+    if (idx >= 0){
+      currReading = all[idx]
+      if (idx > 0) prevReading = all[idx-1]
+    }
+  }catch(e){ /* ignore */ }
+
+  const prevCons = prevReading ? Number(prevReading.consumption || 0) : null
+  const prevProd = prevReading ? Number(prevReading.production || 0) : null
+  const currCons = currReading ? Number(currReading.consumption || 0) : null
+  const currProd = currReading ? Number(currReading.production || 0) : null
+  const recibido = (currCons != null) ? (currCons - (prevCons || 0)) : (row.invoice?.consumption_kWh ?? null)
+  const entregado = (currProd != null) ? (currProd - (prevProd || 0)) : (row.invoice?.production_kWh ?? null)
+
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
@@ -76,7 +93,7 @@ export default function InvoiceModal({ open, onClose, row }: Props){
           <div>
             <h3 id="invoice-title" className="text-base font-semibold">Detalle de Factura</h3>
             <div className="text-xs text-gray-300">Fecha: {row.date || ''} — Consumo: {row.consumption_kWh ?? '-'} kWh</div>
-            <div className="text-xs text-gray-300">Tarifa: {invoice?.tariff?.header?.id || 'N/A'}</div>
+            <div className="text-xs text-gray-300">Tarifa: {invoice?.tariff?.id || 'N/A'}</div>
           </div>
           <button ref={closeBtnRef} className="glass-button p-2" title="Cerrar" onClick={onClose}><X size={14} /></button>
         </div>

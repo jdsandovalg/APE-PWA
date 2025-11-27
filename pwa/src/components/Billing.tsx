@@ -1,12 +1,14 @@
 import React, { useEffect, useState } from 'react'
-import { loadTariffs, loadReadings, computeDeltas, findActiveTariffForDate } from '../services/storage'
-import { computeInvoiceForPeriod } from '../services/billing'
+import { getAllTariffs, getReadings, type TariffRecord, type ReadingRecord } from '../services/supabasePure'
+import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
+import { supabase } from '../services/supabase'
 import InvoiceModal from './InvoiceModal'
 
 function currency(v:number){ return `Q ${v.toFixed(2)}` }
 
 export default function Billing(){
-  const [tariffs, setTariffs] = useState<any[]>([])
+  const [tariffs, setTariffs] = useState<TariffRecord[]>([])
+  const [readings, setReadings] = useState<ReadingRecord[]>([])
   const [consumption, setConsumption] = useState<number>(0)
   const [production, setProduction] = useState<number>(147)
   const [credits, setCredits] = useState<number>(0)
@@ -17,71 +19,70 @@ export default function Billing(){
   const [useCumulativeCredits, setUseCumulativeCredits] = useState<boolean>(false)
   const [selectedRow, setSelectedRow] = useState<any | null>(null)
   const [showInvoice, setShowInvoice] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [currentMeterId, setCurrentMeterId] = useState<string>('')
+  const [currentMeter, setCurrentMeter] = useState<MeterRecord | null>(null)
 
-  useEffect(()=>{ setTariffs(loadTariffs()) },[])
+  useEffect(() => {
+    loadData()
+  }, [])
+
+  async function loadData() {
+    try {
+      setLoading(true)
+      const metersData = await getAllMeters()
+      let meterId = currentMeterId
+      if (!meterId && metersData.length > 0) {
+        meterId = metersData[0].contador
+        setCurrentMeterId(meterId)
+        setCurrentMeter(metersData[0])
+      }
+      const [tariffsData, readingsData] = await Promise.all([
+        getAllTariffs(),
+        getReadings(meterId)
+      ])
+      setTariffs(tariffsData)
+      setReadings(readingsData)
+    } catch (error) {
+      console.error('Error loading data:', error)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Helper functions
+  // Removed: computeDeltas, findActiveTariffForDate (now handled server-side)
+
   // On mount, immediately compute row-by-row table so it's visible when entering the view
   useEffect(()=>{
     // small timeout to allow any surrounding navigation state to settle
-    setTimeout(()=>{
-      try{ runFromDeltas() }catch(e){ console.error('runFromDeltas failed', e) }
+    setTimeout(async ()=>{
+      try{ await runFromDeltas() }catch(e){ console.error('runFromDeltas failed', e) }
     }, 30)
-  }, [])
+  }, [currentMeter])
 
-  function run(){
-    const tariff = selected!==null ? tariffs[selected] : (tariffs[0]||null)
-    const r = computeInvoiceForPeriod(consumption, production, tariff, { forUnit: mode==='month'?'month':'period', credits_Q: credits })
-    setResult(r)
-  }
-
-  function runFromReadings(){
-    const raws = loadReadings()
-    if (!raws || raws.length === 0){ setResultsByMonth([]); return }
-    const deltas = computeDeltas(raws)
-    // group deltas by YYYY-MM
-    const groups: Record<string, { consumption:number, production:number, credits_kWh:number, dates: string[] }>= {}
-    deltas.forEach(d=>{
-      const dt = new Date(d.date)
-      const key = `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`
-      if (!groups[key]) groups[key] = { consumption:0, production:0, credits_kWh:0, dates: [] }
-      groups[key].consumption += Number(d.consumption || 0)
-      groups[key].production += Number(d.production || 0)
-      groups[key].credits_kWh += Number((d as any).credit || 0)
-      groups[key].dates.push(d.date)
-    })
-
-    const months = Object.keys(groups).sort()
-    const out: any[] = []
-    let cumulativeCredits = 0
-    for (const m of months){
-      const g = groups[m]
-      cumulativeCredits += g.credits_kWh
-      const sampleDate = g.dates[g.dates.length-1] || `${m}-01`
-      const tariff = findActiveTariffForDate(sampleDate)
-      const credits_kWh_to_apply = useCumulativeCredits ? cumulativeCredits : g.credits_kWh
-      const inv = computeInvoiceForPeriod(g.consumption, g.production, tariff, { forUnit: 'period', date: sampleDate, credits_kWh: credits_kWh_to_apply } as any)
-      out.push({ month: m, consumption: g.consumption, production: g.production, credits_kWh: credits_kWh_to_apply, tariffId: tariff?.header?.id || null, invoice: inv })
+  async function runFromDeltas(){
+    if (!currentMeter?.contador) {
+      setResultsByMonth([]);
+      return;
     }
-    setResultsByMonth(out)
-  }
-
-  function runFromDeltas(){
-    const raws = loadReadings()
-    if (!raws || raws.length === 0){ setResultsByMonth([]); return }
-    const deltas = computeDeltas(raws)
-    // for each delta row, compute invoice using tariff active on that date
-    const rows = deltas.map(d=>{
-      const sampleDate = d.date
-      const tariff = findActiveTariffForDate(sampleDate)
-      const inv = computeInvoiceForPeriod(Number(d.consumption||0), Number(d.production||0), tariff, { forUnit: 'period', date: sampleDate, credits_kWh: Number((d as any).credit || 0) } as any)
-      return {
-        date: new Date(d.date).toISOString().split('T')[0],
-        consumption_kWh: Number(d.consumption||0),
-        tariffId: tariff?.header?.id || null,
-        invoice: inv
-      }
-    })
-    // store in resultsByMonth to reuse rendering area
-    setResultsByMonth(rows)
+    try {
+      const { data, error } = await supabase.rpc('get_invoices', { meter_id_param: currentMeter.contador });
+      if (error) throw error;
+      // data is the array of invoices
+      const rows = data.map((inv: any) => ({
+        date: inv.invoice_date,
+        consumption_kWh: inv.consumption_kwh,
+        production_kWh: inv.production_kwh,
+        credit_kWh: inv.credit_kwh,
+        tariffId: inv.tariff_id,
+        invoice: inv.invoice_data
+      }));
+      setResultsByMonth(rows);
+    } catch (e) {
+      console.error('Error calling get_invoices', e);
+      setResultsByMonth([]);
+    }
   }
 
   return (
@@ -130,27 +131,27 @@ export default function Billing(){
                             <div className="font-medium text-xs">{Number(r.consumption_kWh || 0).toLocaleString()}</div>
                           </td>
                           <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.fixedCharge_Q ? `${Number(r.invoice.tariff.rates.fixedCharge_Q).toFixed(4)} Q` : '-'}</div>
+                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.fixed_charge_q ? `${Number(r.invoice.tariff.fixed_charge_q).toFixed(4)} Q` : '-'}</div>
                             <div className="font-medium text-xs">{currency(Number(r.invoice?.fixed_charge_Q || 0))}</div>
                           </td>
                           <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.energy_Q_per_kWh ? `${Number(r.invoice.tariff.rates.energy_Q_per_kWh).toFixed(6)} Q/kWh` : '-'}</div>
+                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.energy_q_per_kwh ? `${Number(r.invoice.tariff.energy_q_per_kwh).toFixed(6)} Q/kWh` : '-'}</div>
                             <div className="font-medium text-xs">{currency(Number(r.invoice?.energy_charge_Q || 0))}</div>
                           </td>
                           <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.distribution_Q_per_kWh ? `${Number(r.invoice.tariff.rates.distribution_Q_per_kWh).toFixed(6)} Q/kWh` : '-'}</div>
+                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.distribution_q_per_kwh ? `${Number(r.invoice.tariff.distribution_q_per_kwh).toFixed(6)} Q/kWh` : '-'}</div>
                             <div className="font-medium text-xs">{currency(Number(r.invoice?.distribution_charge_Q || 0))}</div>
                           </td>
                           <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.potencia_Q_per_kWh ? `${Number(r.invoice.tariff.rates.potencia_Q_per_kWh).toFixed(6)} Q/kWh` : '-'}</div>
+                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.potencia_q_per_kwh ? `${Number(r.invoice.tariff.potencia_q_per_kwh).toFixed(6)} Q/kW` : '-'}</div>
                             <div className="font-medium text-xs">{currency(Number(r.invoice?.potencia_charge_Q || 0))}</div>
                           </td>
                           <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.contrib_percent != null ? `${Number(r.invoice.tariff.rates.contrib_percent)}%` : '-'}</div>
+                            <div className="text-2xs text-gray-400">-</div>
                             <div className="font-medium text-xs">{currency(Number(r.invoice?.contrib_amount_Q || 0))}</div>
                           </td>
                           <td className="px-1 py-1 border border-white/10 text-right align-top whitespace-nowrap">
-                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.rates?.iva_percent != null ? `${Number(r.invoice.tariff.rates.iva_percent)}%` : '12%'}</div>
+                            <div className="text-2xs text-gray-400">{r.invoice?.tariff?.iva_percent != null ? `${Number(r.invoice.tariff.iva_percent)}%` : '12%'}</div>
                             <div className="font-medium text-xs">{currency(Number(r.invoice?.iva_amount_Q || 0))}</div>
                           </td>
                           <td className="px-1 py-1 border border-white/10 text-right font-semibold align-top whitespace-nowrap text-sm">{currency(Number(r.invoice?.total_due_Q || 0))}</td>

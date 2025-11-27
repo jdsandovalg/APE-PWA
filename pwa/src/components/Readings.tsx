@@ -1,39 +1,78 @@
 import React, { useEffect, useState } from 'react'
-import { loadReadings, saveReadings, loadCurrentMeterId, loadMeterInfo } from '../services/storage'
-import { computeDeltas } from '../services/storage'
+import { getReadings, saveReadings } from '../services/supabasePure'
+import { getAllMeters, getMeterByContador } from '../services/supabaseBasic'
+import { computeDeltas } from '../services/supabasePure'
 import AddReadingModal from './AddReadingModal'
 import ConfirmModal from './ConfirmModal'
 import { showToast } from '../services/toast'
 import { parseCSV, toNumber } from '../services/csv'
 import { UploadCloud, DownloadCloud, Edit2, PlusCircle, Trash2 } from 'lucide-react'
 
-type Reading = { date:string, consumption:number, production:number, credit?:number }
-
 export default function Readings(){
-  const [data, setData] = useState<Reading[]>([])
+  const [data, setData] = useState<any[]>([])
+  const [currentMeterId, setCurrentMeterId] = useState<string>('')
+  const [meterInfo, setMeterInfo] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
   const [message, setMessage] = useState<string | null>(null)
-  const currentMeterId = loadCurrentMeterId()
-  const meterInfo = loadMeterInfo()
   const [showAddModal, setShowAddModal] = useState(false)
   const [showConfirmClear, setShowConfirmClear] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
   const [editingInitial, setEditingInitial] = useState<{date:string, consumption:number, production:number} | null>(null)
 
-  useEffect(()=>{ setData(loadReadings()) },[])
+  useEffect(() => {
+    loadInitialData()
+  }, [])
 
-  function applyParsedRows(rows: Record<string,string>[], srcName = 'archivo'){
-    const parsed: Reading[] = rows.map(r=>({
+  async function loadInitialData() {
+    try {
+      setLoading(true)
+
+      // Get all meters and set first one as current
+      const meters = await getAllMeters()
+      if (meters.length > 0) {
+        const currentId = meters[0].contador
+        setCurrentMeterId(currentId)
+
+        // Get meter info
+        const meter = await getMeterByContador(currentId)
+        setMeterInfo(meter ? {
+          contador: meter.contador,
+          correlativo: meter.correlativo,
+          propietaria: meter.propietaria,
+          nit: meter.nit,
+          distribuidora: meter.distribuidora,
+          tipo_servicio: meter.tipo_servicio,
+          sistema: meter.sistema
+        } : null)
+
+        // Load readings for current meter
+        const readings = await getReadings(currentId)
+        setData(readings)
+      }
+    } catch (error) {
+      console.error('Error loading initial data:', error)
+      showToast('Error al cargar datos', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  async function applyParsedRows(rows: Record<string,string>[], srcName = 'archivo'){
+    if (!currentMeterId) {
+      setMessage('No hay medidor activo')
+      return
+    }
+
+    const parsed: any[] = rows.map(r=>({
       date: r.date || r.fecha || new Date().toISOString(),
       consumption: toNumber(r.consumption ?? r.consumo ?? r.kwh ?? r.lecturarecibida ?? '0'),
       production: toNumber(r.production ?? r.produccion ?? r.generacion ?? r.lecturaentregada ?? '0'),
       credit: toNumber(r.credit ?? r.credito ?? '0')
     }))
-    // If the CSV provides only lecturaentregada/lecturarecibida as instantaneous readings
-    // and not explicit consumption/production, keep the raw values. (You can later
-    // compute deltas externally if needed.)
+
     const merged = [...parsed, ...data]
     setData(merged)
-    saveReadings(merged)
+    await saveReadings(currentMeterId, merged)
     setMessage(`Importadas ${parsed.length} filas desde ${srcName}`)
   }
 
@@ -55,7 +94,7 @@ export default function Readings(){
       if (!resp.ok) throw new Error('No encontrado en repo')
       const txt = await resp.text()
       const { rows } = parseCSV(txt)
-      applyParsedRows(rows, 'Cargas.csv (repo)')
+      await applyParsedRows(rows, 'Cargas.csv (repo)')
     }catch(err:any){
       setMessage(`Error al cargar desde repo: ${err.message || err}`)
     }
@@ -73,24 +112,32 @@ export default function Readings(){
   }
 
   function clearAll(){
-    // open confirm modal instead of browser confirm
     setShowConfirmClear(true)
   }
 
-  function doClear(){
+  async function doClear(){
+    if (!currentMeterId) return
+
     setShowConfirmClear(false)
-    setData([]); saveReadings([])
+    setData([])
+    await saveReadings(currentMeterId, [])
     setMessage('Lecturas limpiadas')
     showToast('Lecturas limpiadas', 'success')
   }
 
-  function convertToDeltas(){
+  async function convertToDeltas(){
     const deltas = computeDeltas(data)
-    if (!deltas || deltas.length===0){ setMessage('No hay lecturas para convertir'); return }
+    if (!deltas || deltas.length===0){
+      setMessage('No hay lecturas para convertir')
+      return
+    }
+
     // preserve original ordering by date descending for UX (most recent first)
     const ordered = [...deltas].sort((a,b)=> new Date(b.date).getTime() - new Date(a.date).getTime())
     setData(ordered)
-    saveReadings(ordered)
+    if (currentMeterId) {
+      await saveReadings(currentMeterId, ordered)
+    }
     setMessage(`Calculados ${deltas.length} periodos (deltas)`)
   }
 
@@ -141,23 +188,68 @@ export default function Readings(){
     }
   }catch(e){ /* ignore */ }
 
+  if (loading) {
+    return (
+      <section>
+        <div className="mb-4 text-xs text-gray-300">Cargando lecturas...</div>
+      </section>
+    )
+  }
+
   return (
     <section>
-      <div className="mb-4 text-xs text-gray-300">Medidor activo: <strong className="text-white">{currentMeterId}</strong> — {meterInfo.propietaria}</div>
-        <div className="flex gap-2 mb-4 items-center justify-center flex-wrap">
-          <button className="glass-button p-2 flex items-center gap-2" title="Agregar lectura" aria-label="Agregar lectura" onClick={()=> { setEditingIndex(null); setEditingInitial(null); setShowAddModal(true) }}><PlusCircle size={14} /><span className="hidden md:inline">Agregar lectura</span></button>
+      <div className="mb-4 text-xs text-gray-300">
+        Medidor activo: <strong className="text-white">{currentMeterId}</strong> — {meterInfo?.propietaria || 'Sin información'}
+      </div>
+      <div className="flex gap-2 mb-4 items-center justify-center flex-wrap">
+        <button
+          className="glass-button p-2 flex items-center gap-2"
+          title="Agregar lectura"
+          aria-label="Agregar lectura"
+          onClick={()=> { setEditingIndex(null); setEditingInitial(null); setShowAddModal(true) }}
+        >
+          <PlusCircle size={14} />
+          <span className="hidden md:inline">Agregar lectura</span>
+        </button>
         <label className="glass-button cursor-pointer p-2 flex items-center gap-2 px-3 py-2">
           <UploadCloud size={16} />
           <span className="hidden md:inline">Importar CSV</span>
           <input type="file" accept=".csv,.txt" onChange={onImport} className="hidden" />
         </label>
-        <button className="glass-button p-2 flex items-center gap-2" title="Exportar datos" aria-label="Exportar datos" onClick={exportJSON}><DownloadCloud size={16} /><span className="hidden md:inline">Exportar datos</span></button>
-        <button className="glass-button p-2 bg-red-600 text-white flex items-center gap-2" title="Limpiar lecturas" aria-label="Limpiar lecturas" onClick={clearAll}><Trash2 size={14} /><span className="hidden md:inline">Limpiar</span></button>
+        <button
+          className="glass-button p-2 flex items-center gap-2"
+          title="Exportar datos"
+          aria-label="Exportar datos"
+          onClick={exportJSON}
+        >
+          <DownloadCloud size={16} />
+          <span className="hidden md:inline">Exportar datos</span>
+        </button>
       </div>
       {message && <div className="w-full text-center mb-4 text-sm text-gray-300">{message}</div>}
 
-      <AddReadingModal open={showAddModal} onClose={()=> setShowAddModal(false)} onSaved={()=>{ setData(loadReadings()); setMessage('Lectura agregada') }} initial={editingInitial} editingIndex={editingIndex} />
-      <ConfirmModal open={showConfirmClear} title="Confirmar limpieza" message="¿Desea borrar todas las lecturas? Esta acción no se puede deshacer." onCancel={()=> setShowConfirmClear(false)} onConfirm={doClear} cancelText="Cancelar" confirmText="Borrar" />
+      <AddReadingModal
+        open={showAddModal}
+        onClose={()=> setShowAddModal(false)}
+        onSaved={async () => {
+          if (currentMeterId) {
+            const readings = await getReadings(currentMeterId)
+            setData(readings)
+          }
+          setMessage('Lectura agregada')
+        }}
+        initial={editingInitial}
+        editingIndex={editingIndex}
+      />
+      <ConfirmModal
+        open={showConfirmClear}
+        title="Confirmar limpieza"
+        message="¿Desea borrar todas las lecturas? Esta acción no se puede deshacer."
+        onCancel={()=> setShowConfirmClear(false)}
+        onConfirm={doClear}
+        cancelText="Cancelar"
+        confirmText="Borrar"
+      />
 
       <div className="overflow-x-auto">
         <table className="min-w-full text-left text-xs">

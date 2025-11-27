@@ -1,137 +1,133 @@
 import React from 'react'
-import { loadReadings, computeDeltas, findActiveTariffForDate, createPreviousQuartersFromActive, loadMeterInfo, loadMeters, loadCurrentMeterId, saveMeters, saveCurrentMeterId, migrateLegacyReadingsToCurrentMeter, loadMigrationInfo, clearMigrationInfo, loadCompanies } from '../services/storage'
+import { getAllCompanies, getAllTariffs, getReadings, saveReadings, createPreviousQuartersFromActive, type CompanyRecord, type TariffRecord, type ReadingRecord } from '../services/supabasePure'
+import { getAllMeters, createMeter, updateMeter } from '../services/supabaseBasic'
 import MeterModal from './MeterModal'
 import ConfirmModal from './ConfirmModal'
 import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
-import { getCompaniesCount, getCompaniesList, getTariffsCount, getTariffsList, syncTariffsFromSupabase, getReadingsCount, getReadingsList, syncReadingsFromSupabase } from '../services/supabase'
-import { smartSyncCompanies } from '../services/smartCompanies'
 import { exportPDF } from '../utils/pdfExport'
-import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Edit, Users, Upload, Download, X, Plus, Building2, Gauge, Settings } from 'lucide-react'
+import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Gauge, Settings, X, Plus, Building } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area, LabelList } from 'recharts'
 
 function currency(v:number){ return `Q ${v.toFixed(2)}` }
 
 export default function Dashboard({ onNavigate }: { onNavigate: (view: string) => void }){
-  const readings = loadReadings()
-  const [metersMap, setMetersMap] = React.useState<Record<string, any>>(() => loadMeters())
-  const [currentMeterId, setCurrentMeterId] = React.useState<string>(() => loadCurrentMeterId())
-  const [meterInfo, setMeterInfo] = React.useState(loadMeterInfo())
+  const [meters, setMeters] = React.useState<any[]>([])
+  const [currentMeterId, setCurrentMeterId] = React.useState<string>('')
+  const [meterInfo, setMeterInfo] = React.useState<any>({})
   const [showMeterModal, setShowMeterModal] = React.useState(false)
   const [modalInitialMeter, setModalInitialMeter] = React.useState<any | null>(null)
   const [showCreateQuartersModal, setShowCreateQuartersModal] = React.useState(false)
   const [createQuartersCount, setCreateQuartersCount] = React.useState<number>(2)
-  const [showMigrateConfirm, setShowMigrateConfirm] = React.useState(false)
   const [pendingCreateQuarters, setPendingCreateQuarters] = React.useState<number | null>(null)
 
-  const [companiesCount, setCompaniesCount] = React.useState<number>(0)
-  const [companiesList, setCompaniesList] = React.useState<{ id: string; code: string; name: string }[]>([])
+  const [companies, setCompanies] = React.useState<CompanyRecord[]>([])
+  const [tariffs, setTariffs] = React.useState<TariffRecord[]>([])
+  const [readings, setReadings] = React.useState<ReadingRecord[]>([])
+  const [loading, setLoading] = React.useState(true)
 
-  const [tariffsCount, setTariffsCount] = React.useState<number>(0)
-  const [tariffsList, setTariffsList] = React.useState<{ id: string; company: string; segment: string; period_from: string; period_to: string }[]>([])
+  // Load all data from Supabase on mount
+  React.useEffect(() => {
+    loadAllData()
+  }, [])
 
-  const [readingsCount, setReadingsCount] = React.useState<number>(0)
-  const [readingsList, setReadingsList] = React.useState<{ meter_id: string; date: string; consumption: number; production: number; credit: number }[]>([])
+  async function loadAllData(){
+    try {
+      setLoading(true)
+      console.log('🔄 Loading all dashboard data from Supabase...')
 
-  // Run one-time migration automatically when Dashboard mounts, if legacy data exists.
-  React.useEffect(()=>{
-    try{
-      if (typeof window !== 'undefined' && window.localStorage.getItem('apenergia:readings')){
-        // perform migration immediately (as requested)
-        const res = migrateLegacyReadingsToCurrentMeter()
-        showToast(`Migradas ${res.migrated} lecturas legacy a ${res.to}`, 'success')
-        // reload to ensure UI picks up namespaced readings
-        setTimeout(()=> window.location.reload(), 600)
+      const [metersData, companiesData, tariffsData, readingsData] = await Promise.all([
+        getAllMeters(),
+        getAllCompanies(),
+        getAllTariffs(),
+        getReadings()
+      ])
+
+      setMeters(metersData)
+      setCompanies(companiesData)
+      setTariffs(tariffsData)
+      setReadings(readingsData)
+
+      // Set current meter (use first one if available)
+      if (metersData.length > 0) {
+        const currentMeter = metersData[0]
+        setCurrentMeterId(currentMeter.id)
+        setMeterInfo(currentMeter)
+        // Filter readings to current meter
+        const filteredReadings = readingsData.filter(r => r.meter_id === currentMeter.contador || r.meter_id === currentMeter.id)
+        setReadings(filteredReadings)
+        console.log('📊 Dashboard data loaded from Supabase:', {
+          meters: metersData.length,
+          companies: companiesData.length,
+          tariffs: tariffsData.length,
+          readings: readingsData.length,
+          filteredReadings: filteredReadings.length,
+          currentMeterId: currentMeter.id,
+          readingsMeterIds: readingsData.map(r => r.meter_id)
+        })
       }
-    }catch(e){ /* ignore */ }
-  }, [])
-
-  // check migration info so we can show a persistent banner after reload
-  const [migrationInfo, setMigrationInfo] = React.useState<any | null>(()=> loadMigrationInfo())
-  const exportingRef = React.useRef(false)
-
-  // Smart sync companies from Supabase on mount
-  React.useEffect(() => {
-    smartSyncCompanies().catch(err => {
-      console.error('Smart sync failed:', err)
-      showToast('Error sincronizando compañías, usando datos locales', 'warning')
-    })
-  }, [])
-
-  // Sync tariffs from Supabase on mount
-  React.useEffect(() => {
-    syncTariffsFromSupabase().catch(err => {
-      console.error('Sync tariffs failed:', err)
-      showToast('Error sincronizando tarifas, usando datos locales', 'warning')
-    })
-  }, [])
-
-  // Sync readings from Supabase on mount
-  React.useEffect(() => {
-    syncReadingsFromSupabase().catch(err => {
-      console.error('Sync readings failed:', err)
-      showToast('Error sincronizando lecturas, usando datos locales', 'warning')
-    })
-  }, [])
-
-  // Load companies count and list from Supabase
-  React.useEffect(() => {
-    const loadData = async () => {
-      const count = await getCompaniesCount()
-      const list = await getCompaniesList()
-      setCompaniesCount(count)
-      setCompaniesList(list)
+    } catch (error) {
+      console.error('❌ Error loading dashboard data:', error)
+      showToast('Error cargando datos del dashboard', 'error')
+    } finally {
+      setLoading(false)
     }
-    loadData()
-  }, [])
-
-  // Load tariffs count and list from Supabase
-  React.useEffect(() => {
-    const loadData = async () => {
-      const count = await getTariffsCount()
-      const list = await getTariffsList()
-      setTariffsCount(count)
-      setTariffsList(list)
-    }
-    loadData()
-  }, [])
-
-  // Load readings count and list from Supabase
-  React.useEffect(() => {
-    const loadData = async () => {
-      const count = await getReadingsCount()
-      const list = await getReadingsList()
-      setReadingsCount(count)
-      setReadingsList(list)
-    }
-    loadData()
-  }, [])
-
-  const reloadTariffsData = async () => {
-    const count = await getTariffsCount()
-    const list = await getTariffsList()
-    setTariffsCount(count)
-    setTariffsList(list)
   }
 
-  const reloadReadingsData = async () => {
-    const count = await getReadingsCount()
-    const list = await getReadingsList()
-    setReadingsCount(count)
-    setReadingsList(list)
+  // Helper functions for calculations
+  function computeDeltas(readings: ReadingRecord[]) {
+    if (!readings || readings.length < 2) return []
+
+    const sorted = [...readings].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    const deltas = []
+
+    for (let i = 1; i < sorted.length; i++) {
+      const prev = sorted[i - 1]
+      const curr = sorted[i]
+      const consumption = Number(curr.consumption || 0) - Number(prev.consumption || 0)
+      const production = Number(curr.production || 0) - Number(prev.production || 0)
+      const credit = Number(curr.credit || 0)
+
+      deltas.push({
+        date: curr.date,
+        consumption,
+        production,
+        credit,
+        net: production - consumption
+      })
+    }
+
+    return deltas
+  }
+
+  function findActiveTariffForDate(date: string, company?: string, segment?: string) {
+    const targetDate = new Date(date)
+    const activeTariffs = tariffs.filter(tariff => {
+      const fromDate = new Date(tariff.header.period.from)
+      const toDate = new Date(tariff.header.period.to)
+      const matchesDate = targetDate >= fromDate && targetDate <= toDate
+      const matchesCompany = !company || tariff.header.company === company
+      const matchesSegment = !segment || tariff.header.segment === segment
+      return matchesDate && matchesCompany && matchesSegment
+    })
+
+    return activeTariffs.length > 0 ? activeTariffs[0] : null
   }
 
   const handleExportPDF = async () => {
     await exportPDF()
   }
+
+  // Calculate monthly consumption and production
   const thisMonth = new Date().getMonth()
+  const thisYear = new Date().getFullYear()
   let consumptionMonth = 0
   let productionMonth = 0
   let creditAccum = 0
 
-  readings.forEach(r=>{
+  readings.forEach(r => {
     const d = new Date(r.date)
-    if (d.getMonth() === thisMonth && d.getFullYear() === new Date().getFullYear()){
+    if (d.getMonth() === thisMonth && d.getFullYear() === thisYear) {
       consumptionMonth += Number(r.consumption || 0)
       productionMonth += Number(r.production || 0)
     }
@@ -140,67 +136,67 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
 
   const netMonth = consumptionMonth - productionMonth
 
-  // find active tariff for this date and segment EEGSA/BTSA
+  // Find active tariff for this date and segment EEGSA/BTSA
   const activeTariff = findActiveTariffForDate(new Date().toISOString(), 'EEGSA', 'BTSA')
-  // compute invoice for the month: prorate fixed charge per month
-  // pass accumulated credit as kWh (credits_kWh) since stored credit is energy units
-  const invoice = computeInvoiceForPeriod(consumptionMonth, productionMonth, activeTariff, { forUnit: 'month', date: new Date().toISOString(), credits_kWh: creditAccum } as any)
-  // estimatedBill: prefer last delta's invoice (last period) if available, otherwise month invoice
-  let estimatedBill = invoice.total_due_Q
-  let lastDelta: any = null
-  try{
-    const raws = loadReadings()
-    const deltas = computeDeltas(raws || [])
-    if (deltas && deltas.length>0) lastDelta = deltas[deltas.length-1]
-    if (lastDelta){
-      try{
-        const lastTariff = findActiveTariffForDate(lastDelta.date)
-        const lastInv = computeInvoiceForPeriod(Number(lastDelta.consumption||0), Number(lastDelta.production||0), lastTariff, { forUnit: 'period', date: lastDelta.date } as any)
-        if (lastInv && typeof lastInv.total_due_Q === 'number') estimatedBill = lastInv.total_due_Q
-      }catch(e){ /* ignore and fall back */ }
-    }
-  }catch(e){ /* ignore */ }
 
-  // compute latest saldo (from deltas) and month accumulated saldo
+  // Compute invoice for the month: prorate fixed charge per month
+  const invoice = activeTariff ? computeInvoiceForPeriod(consumptionMonth, productionMonth, activeTariff, { forUnit: 'month', date: new Date().toISOString(), credits_kWh: creditAccum }) : { total_due_Q: 0 }
+
+  // Estimated bill: prefer last delta's invoice if available, otherwise month invoice
+  let estimatedBill = invoice.total_due_Q
+  const deltas = computeDeltas(readings)
+  let lastDelta = null
+  if (deltas && deltas.length > 0) {
+    lastDelta = deltas[deltas.length - 1]
+    if (lastDelta) {
+      try {
+        const lastTariff = findActiveTariffForDate(lastDelta.date)
+        if (lastTariff) {
+          const lastInv = computeInvoiceForPeriod(Number(lastDelta.consumption || 0), Number(lastDelta.production || 0), lastTariff, { forUnit: 'period', date: lastDelta.date })
+          if (lastInv && typeof lastInv.total_due_Q === 'number') {
+            estimatedBill = lastInv.total_due_Q
+          }
+        }
+      } catch (e) { /* ignore and fall back */ }
+    }
+  }
+
+  // Compute latest saldo and accumulated saldo
   let latestSaldo = 0
   let accumulatedSaldo = 0
-  try{
-    const raws = loadReadings()
-    const deltas = computeDeltas(raws || [])
-    if (deltas && deltas.length>0){
-      const latest = deltas[deltas.length-1]
-      latestSaldo = (Number(latest.production)||0) - (Number(latest.consumption)||0)
-      accumulatedSaldo = deltas.reduce((acc,cur)=> acc + ((Number(cur.production)||0) - (Number(cur.consumption)||0)), 0)
-    }
-  }catch(e){ /* ignore */ }
+  if (deltas && deltas.length > 0) {
+    const latest = deltas[deltas.length - 1]
+    latestSaldo = (Number(latest.production) || 0) - (Number(latest.consumption) || 0)
+    accumulatedSaldo = deltas.reduce((acc, cur) => acc + ((Number(cur.production) || 0) - (Number(cur.consumption) || 0)), 0)
+  }
 
   // Find readings that do not have an active tariff assigned
   let readingsMissingTariff: string[] = []
-  try{
-    const all = readings || []
-    const missing = all.filter(r => {
-      try{
+  try {
+    const missing = readings.filter(r => {
+      try {
         const t = findActiveTariffForDate(r.date)
         return !t
-      }catch(e){ return true }
+      } catch (e) { return true }
     })
-    // unique dates (format to date only)
+    // Unique dates
     const uniq = Array.from(new Set(missing.map(m => new Date(m.date).toISOString().split('T')[0])))
     readingsMissingTariff = uniq
-  }catch(e){ readingsMissingTariff = [] }
+  } catch (e) { readingsMissingTariff = [] }
 
-  // compute chart data (rows and cumulativeRows) for charts
+  // Compute chart data (rows and cumulativeRows) for charts
   let chartRows: any[] = []
   let cumulativeRows: any[] = []
   let chartRowsAvg: any[] = []
   let chartRowsAvgProd: any[] = []
+
   try {
-    const rawsForChart = loadReadings()
-    if (rawsForChart && rawsForChart.length >= 2) {
-      const items = [...rawsForChart].map(r=>({ ...r, date: new Date(r.date).toISOString() }))
-      items.sort((a,b)=> new Date(a.date).getTime() - new Date(b.date).getTime())
-      for (let i=1;i<items.length;i++){
-        const prev = items[i-1]
+    if (readings && readings.length >= 2) {
+      const items = [...readings].map(r => ({ ...r, date: new Date(r.date).toISOString() }))
+      items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+      for (let i = 1; i < items.length; i++) {
+        const prev = items[i - 1]
         const curr = items[i]
         const consCurr = Number(curr.consumption || 0)
         const prodCurr = Number(curr.production || 0)
@@ -211,12 +207,14 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
         const net = productionDelta - consumptionDelta
         chartRows.push({ date: curr.date.split('T')[0], consumption: consumptionDelta, production: productionDelta, net })
       }
-      // build average kWh/day series (consumptionDelta / days between readings)
+
+      // Build average kWh/day series (consumptionDelta / days between readings)
       const MS_PER_DAY = 1000 * 60 * 60 * 24
       const avgConsSeries: any[] = []
       const avgProdSeries: any[] = []
-      for (let i=1;i<items.length;i++){
-        const prev = items[i-1]
+
+      for (let i = 1; i < items.length; i++) {
+        const prev = items[i - 1]
         const curr = items[i]
         const consumptionDelta = Number(curr.consumption || 0) - Number(prev.consumption || 0)
         const productionDelta = Number(curr.production || 0) - Number(prev.production || 0)
@@ -226,16 +224,18 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
         avgConsSeries.push({ date: curr.date.split('T')[0], avg: avgCons, raw: consumptionDelta, days })
         avgProdSeries.push({ date: curr.date.split('T')[0], avg: avgProd, raw: productionDelta, days })
       }
+
       let running = 0
-      cumulativeRows = chartRows.map(r=>{
-        running += (Number(r.production)||0) - (Number(r.consumption)||0)
-        return { ...r, cumulative: running, positive: Math.max(running,0), negative: Math.abs(Math.min(running,0)) }
+      cumulativeRows = chartRows.map(r => {
+        running += (Number(r.production) || 0) - (Number(r.consumption) || 0)
+        return { ...r, cumulative: running, positive: Math.max(running, 0), negative: Math.abs(Math.min(running, 0)) }
       })
-      // expose avg series to outer scope
+
+      // Expose avg series to outer scope
       chartRowsAvg = avgConsSeries
       chartRowsAvgProd = avgProdSeries
     }
-  }catch(e){ chartRows = []; cumulativeRows = [] }
+  } catch (e) { chartRows = []; cumulativeRows = [] }
 
   return (
     <section id="dashboard-printable">
@@ -259,10 +259,10 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
               <p className="text-xs text-gray-400 mt-1">Gestiona empresas y códigos de tarifa</p>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <span className="text-xs text-gray-500" title={companiesList.map(c => `${c.id} (${c.code}): ${c.name}`).join('\n')}>
-                {companiesCount} registros
+              <span className="text-xs text-gray-500" title={companies.map(c => `${c.id} (${c.code}): ${c.name}`).join('\n')}>
+                {companies.length} registros
               </span>
-              <button className="glass-button p-2" title="Empresas / Códigos" aria-label="Empresas y códigos" onClick={()=> onNavigate('companies')}><Building2 size={14} /></button>
+              <button className="glass-button p-2" title="Compañías" aria-label="Compañías" onClick={()=> onNavigate('companies')}><Building size={14} /></button>
             </div>
           </div>
         </div>
@@ -273,8 +273,8 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
               <p className="text-xs text-gray-400 mt-1">Gestiona tarifas por empresa y segmento</p>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <span className="text-xs text-gray-500" title={tariffsList.map(t => `${t.id}: ${t.company} ${t.segment} (${t.period_from} → ${t.period_to})`).join('\n')}>
-                {tariffsCount} registros
+              <span className="text-xs text-gray-500" title={tariffs.map(t => `${t.id}: ${t.company} ${t.segment} (${t.period_from} → ${t.period_to})`).join('\n')}>
+                {tariffs.length} registros
               </span>
               <button className="glass-button p-2" title="Tarifas" aria-label="Tarifas" onClick={()=> onNavigate('tariffs')}><DollarSign size={14} /></button>
             </div>
@@ -287,8 +287,8 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
               <p className="text-xs text-gray-400 mt-1">Historial de lecturas del medidor</p>
             </div>
             <div className="flex flex-col items-end gap-1">
-              <span className="text-xs text-gray-500" title={readingsList.slice(0,10).map(r => `${r.date}: Cons ${r.consumption}, Prod ${r.production}`).join('\n') + (readingsList.length > 10 ? '\n... y más' : '')}>
-                {readingsCount} registros
+              <span className="text-xs text-gray-500" title={readings.slice(0,10).map(r => `${r.date}: Cons ${r.consumption}, Prod ${r.production}`).join('\n') + (readings.length > 10 ? '\n... y más' : '')}>
+                {readings.length} registros
               </span>
               <button className="glass-button p-2" title="Lecturas" aria-label="Lecturas" onClick={()=> onNavigate('readings')}><Gauge size={14} /></button>
             </div>
@@ -365,30 +365,17 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
             </div>
             <AlertTriangle className="text-red-400" size={28} />
           </div>
-            <div className="mt-3 flex gap-2">
-            <button
-              className={`glass-button p-2 flex items-center gap-2 ${readingsMissingTariff.length===0 ? 'opacity-50 cursor-not-allowed' : ''}`}
-              disabled={readingsMissingTariff.length===0}
-              onClick={()=>{
-                if (readingsMissingTariff.length===0) return
-                // open modal to ask for number of quarters
-                setCreateQuartersCount(2)
-                setShowCreateQuartersModal(true)
-              }}
-              title={readingsMissingTariff.length===0 ? 'No hay lecturas sin tarifa pendientes' : 'Crear trimestres anteriores (KIS)'}
-            ><PlusCircle size={14} /><span className="hidden md:inline">Crear trimestres anteriores (KIS)</span></button>
-            {/* Migration button: only show if legacy key exists */}
-            {typeof window !== 'undefined' && window.localStorage.getItem('apenergia:readings') && (
-              <>
-                <button
-                  className="glass-button p-2 bg-amber-600 text-white flex items-center gap-2"
-                  onClick={()=>{
-                    setShowMigrateConfirm(true)
-                  }}
-                ><Upload size={14} /><span className="hidden md:inline">Migrar lecturas legacy</span></button>
-              </>
-            )}
-          </div>
+                  <button
+                    className={`glass-button p-2 flex items-center gap-2 ${readingsMissingTariff.length===0 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    disabled={readingsMissingTariff.length===0}
+                    onClick={async ()=>{
+                      if (readingsMissingTariff.length===0) return
+                      // open modal to ask for number of quarters
+                      setCreateQuartersCount(2)
+                      setShowCreateQuartersModal(true)
+                    }}
+                    title={readingsMissingTariff.length===0 ? 'No hay lecturas sin tarifa pendientes' : 'Crear trimestres anteriores (KIS)'}
+                  ><PlusCircle size={14} /><span className="hidden md:inline">Crear trimestres anteriores (KIS)</span></button>
         </div>
         {/* meter info will be rendered at the top */}
       </div>
@@ -492,42 +479,43 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
               initial={modalInitialMeter || meterInfo}
               readOnlyPK={!!(modalInitialMeter && modalInitialMeter.contador)}
               onClose={()=>{ setShowMeterModal(false); setModalInitialMeter(null) }}
-              onSave={(m)=>{
-                // Determine if creating new (contador empty previously) or updating existing
-                const mm = loadMeters()
-                const creating = !(modalInitialMeter && modalInitialMeter.contador)
-                if (creating){
-                  // enforce PK must not already exist
-                  if (mm[m.contador]){ showToast('El contador ya existe', 'error'); return }
-                  mm[m.contador] = m
-                  saveMeters(mm)
-                  saveCurrentMeterId(m.contador)
-                  setMetersMap(mm)
-                  setMeterInfo(m)
-                  showToast('Medidor creado y seleccionado', 'success')
-                } else {
-                  // update non-PK fields only
-                  const curId = loadCurrentMeterId()
-                  const existing = mm[curId] || {}
-                  const updated = { ...existing, propietaria: m.propietaria, nit: m.nit, distribuidora: m.distribuidora, tipo_servicio: m.tipo_servicio, sistema: m.sistema }
-                  mm[curId] = updated
-                  saveMeters(mm)
-                  setMetersMap(mm)
-                  setMeterInfo(updated)
-                  showToast('Información del medidor actualizada', 'success')
+              onSave={async (m) => {
+                try {
+                  // Determine if creating new or updating existing
+                  const creating = !(modalInitialMeter && modalInitialMeter.id)
+
+                  if (creating) {
+                    // Check if meter already exists
+                    const existingMeters = await getAllMeters()
+                    const exists = existingMeters.some(meter => meter.contador === m.contador)
+                    if (exists) {
+                      showToast('El contador ya existe', 'error')
+                      return
+                    }
+
+                    // Create new meter
+                    await createMeter(m)
+                    setCurrentMeterId(m.id)
+                    setMeterInfo(m)
+                    showToast('Medidor creado y seleccionado', 'success')
+                  } else {
+                    // Update existing meter
+                    await updateMeter(m.id, m)
+                    setMeterInfo(m)
+                    showToast('Información del medidor actualizada', 'success')
+                  }
+
+                  setShowMeterModal(false)
+                  setModalInitialMeter(null)
+                  await loadAllData() // Reload all data
+                } catch (error) {
+                  console.error('Error saving meter:', error)
+                  showToast('Error guardando medidor', 'error')
                 }
-                setShowMeterModal(false)
-                setModalInitialMeter(null)
               }}
             />
           )}
           
-          {migrationInfo && (
-            <div className="mt-4 p-3 bg-emerald-900/30 border border-emerald-700 rounded text-sm text-white">
-              Migración completada: se migraron <strong>{migrationInfo.migrated}</strong> lecturas a <code className="mx-1">{migrationInfo.to}</code>. Backup guardado en <code className="mx-1">{migrationInfo.backupKey}</code>.
-              <button className="ml-4 glass-button p-2 flex items-center gap-2" title="Cerrar" aria-label="Cerrar aviso de migración" onClick={()=>{ clearMigrationInfo(); setMigrationInfo(null); showToast('Aviso de migración descartado', 'info') }}><X size={14} /><span className="hidden md:inline">Cerrar</span></button>
-            </div>
-          )}
           {showCreateQuartersModal && (
             <div className="fixed inset-0 z-50 flex items-center justify-center">
               <div className="absolute inset-0 bg-black/50" onClick={()=>setShowCreateQuartersModal(false)} />
@@ -540,33 +528,24 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                 </div>
                 <div className="flex justify-end gap-2">
                   <button className="glass-button p-2 flex items-center gap-2" title="Cancelar" aria-label="Cancelar" onClick={()=>setShowCreateQuartersModal(false)}><X size={14} /><span className="hidden md:inline">Cancelar</span></button>
-                  <button className="glass-button p-2 bg-green-600 text-white flex items-center gap-2" title="Crear trimestres" aria-label="Crear trimestres anteriores" onClick={()=>{
+                  <button className="glass-button p-2 bg-green-600 text-white flex items-center gap-2" title="Crear trimestres" aria-label="Crear trimestres anteriores" onClick={async ()=>{
                     const n = Number(createQuartersCount||0)
                     if (!n || n<=0){ showToast('Ingresa un número válido de trimestres', 'error'); return }
                     setShowCreateQuartersModal(false)
-                    const res = createPreviousQuartersFromActive(n, 'EEGSA', 'BTSA')
-                    showToast(`Creados: ${res.created}. Revisa la sección Tarifas.`, 'success')
-                    setTimeout(()=> window.location.reload(), 900)
+                    try {
+                      const res = await createPreviousQuartersFromActive(n, 'EEGSA', 'BTSA')
+                      showToast(`Creados: ${res.created}. Revisa la sección Tarifas.`, 'success')
+                      await loadAllData() // Reload data
+                    } catch (error) {
+                      console.error('Error creating quarters:', error)
+                      showToast('Error creando trimestres', 'error')
+                    }
                   }}><PlusCircle size={14} /><span className="hidden md:inline">Crear</span></button>
                 </div>
               </div>
             </div>
           )}
 
-          <ConfirmModal
-            open={showMigrateConfirm}
-            title="Migrar lecturas legacy"
-            message="Se migrarán las lecturas legacy a la llave del medidor actual y se borrará la clave legacy. ¿Continuar?"
-            onCancel={()=>setShowMigrateConfirm(false)}
-            onConfirm={()=>{
-              setShowMigrateConfirm(false)
-              const res = migrateLegacyReadingsToCurrentMeter()
-              showToast(`Migradas ${res.migrated} filas a ${res.to}`, 'success')
-              setTimeout(()=> window.location.reload(), 600)
-            }}
-            confirmText="Migrar"
-            cancelText="Cancelar"
-          />
         </section>
   )
 }

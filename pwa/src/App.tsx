@@ -4,18 +4,16 @@ import Dashboard from './components/Dashboard'
 import Readings from './components/Readings'
 import Tariffs from './components/Tariffs'
 import Billing from './components/Billing'
-import Companies from './components/Companies'
 import Meters from './components/Meters'
+import Companies from './components/Companies'
 import Footer from './components/Footer'
-import { loadReadings, loadTariffs } from './services/storage'
 
 export default function App(){
-  const [view, setView] = useState<'dashboard'|'readings'|'tariffs'|'billing'|'companies'|'meters'>('dashboard')
+  const [view, setView] = useState<'dashboard'|'readings'|'tariffs'|'billing'|'meters'|'companies'>('dashboard')
   const [ready, setReady] = useState(false)
 
   useEffect(()=>{
-    loadReadings()
-    loadTariffs()
+    // Components now load their own data from Supabase when mounted
     setReady(true)
   },[])
 
@@ -27,8 +25,8 @@ export default function App(){
         {view === 'readings' && <Readings />}
         {view === 'tariffs' && <Tariffs />}
         {view === 'billing' && <Billing />}
-        {view === 'companies' && <Companies onNavigate={setView} />}
         {view === 'meters' && <Meters onNavigate={setView} />}
+        {view === 'companies' && <Companies onNavigate={setView} />}
       </main>
       <Footer />
     </div>

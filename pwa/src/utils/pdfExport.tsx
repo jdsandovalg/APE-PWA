@@ -1,7 +1,48 @@
-import { loadMeterInfo, loadReadings, computeDeltas, findActiveTariffForDate, computeInvoiceForPeriod } from '../services/storage'
+import { getReadings, getAllTariffs, type ReadingRecord, type TariffRecord } from '../services/supabasePure'
+import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
 import React from 'react'
 import { render } from 'react-dom'
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, AreaChart, Area, LabelList } from 'recharts'
+
+// Helper functions
+function computeDeltas(readings: ReadingRecord[]) {
+  if (!readings || readings.length < 2) return []
+
+  const sorted = [...readings].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  const deltas = []
+
+  for (let i = 1; i < sorted.length; i++) {
+    const prev = sorted[i - 1]
+    const curr = sorted[i]
+    const consumption = Number(curr.consumption || 0) - Number(prev.consumption || 0)
+    const production = Number(curr.production || 0) - Number(prev.production || 0)
+    const credit = Number(curr.credit || 0)
+
+    deltas.push({
+      date: curr.date,
+      consumption,
+      production,
+      credit,
+      net: production - consumption
+    })
+  }
+
+  return deltas
+}
+
+function findActiveTariffForDate(date: string, tariffs: TariffRecord[], company?: string, segment?: string) {
+  const targetDate = new Date(date)
+  const activeTariffs = tariffs.filter(tariff => {
+    const fromDate = new Date(tariff.period_from)
+    const toDate = new Date(tariff.period_to)
+    const matchesDate = targetDate >= fromDate && targetDate <= toDate
+    const matchesCompany = !company || tariff.company === company
+    const matchesSegment = !segment || tariff.segment === segment
+    return matchesDate && matchesCompany && matchesSegment
+  })
+
+  return activeTariffs.length > 0 ? activeTariffs[0] : null
+}
 
 export async function exportPDF() {
   if (typeof window === 'undefined') return
@@ -9,10 +50,23 @@ export async function exportPDF() {
   if (exportingRef.current) return
   exportingRef.current = true
   let wrapper: HTMLElement | null = null
-  let meterInfo: any = null
+  let meterInfo: MeterRecord | null = null
+  let readings: ReadingRecord[] = []
+  let tariffs: TariffRecord[] = []
   try{
-    meterInfo = loadMeterInfo()
-    const readings = loadReadings()
+    // Load data from Supabase
+    const [metersData, readingsData, tariffsData] = await Promise.all([
+      getAllMeters(),
+      getReadings(),
+      getAllTariffs()
+    ])
+    
+    readings = readingsData
+    tariffs = tariffsData
+    
+    // Use first meter as current meter
+    meterInfo = metersData.length > 0 ? metersData[0] : null
+    
     const src = document.getElementById('dashboard-printable')
     if (!src){ throw new Error('No se encontró la sección para exportar') }
 
@@ -50,7 +104,7 @@ export async function exportPDF() {
       const modHelper: any = await import('../utils/billingPdfHelper')
       const buildBilling = modHelper && (modHelper.buildBillingTable || modHelper.default)
       if (typeof buildBilling === 'function'){
-        const billingNode = buildBilling(readings, meterInfo)
+        const billingNode = buildBilling(readings, meterInfo, tariffs)
         if (billingNode){
           try{ billingNode.style.pageBreakBefore = 'always' }catch(e){ /* ignore */ }
           // append billing table into the inner centered container so wrapper background fills the page
@@ -236,12 +290,26 @@ export async function exportMeterPDF() {
   const exportingRef = { current: false }
   if (exportingRef.current) return
   exportingRef.current = true
+  let meterInfo: MeterRecord | null = null
+  let readings: ReadingRecord[] = []
+  let tariffs: TariffRecord[] = []
   try{
-    const meterInfo = loadMeterInfo()
+    // Load data from Supabase
+    const [metersData, readingsData, tariffsData] = await Promise.all([
+      getAllMeters(),
+      getReadings(),
+      getAllTariffs()
+    ])
+    
+    readings = readingsData
+    tariffs = tariffsData
+    
+    // Use first meter as current meter
+    meterInfo = metersData.length > 0 ? metersData[0] : null
+    
     if (!meterInfo || !meterInfo.contador) {
       throw new Error('No se encontró información del medidor para exportar el PDF')
     }
-    const readings = loadReadings()
 
     // Create a simple HTML content for the meter PDF
     const wrapper = document.createElement('div')
@@ -429,7 +497,7 @@ export async function exportMeterPDF() {
       const modHelper: any = await import('../utils/billingPdfHelper')
       const buildBilling = modHelper && (modHelper.buildBillingTable || modHelper.default)
       if (typeof buildBilling === 'function'){
-        const billingNode = buildBilling(readings, meterInfo)
+        const billingNode = buildBilling(readings, meterInfo, tariffs)
         if (billingNode){
           try{ billingNode.style.pageBreakBefore = 'always' }catch(e){ /* ignore */ }
           wrapper.appendChild(billingNode)

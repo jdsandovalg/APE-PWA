@@ -1,9 +1,7 @@
 import React from 'react'
-import { CompanyInfo, loadCompanies, saveCompanies } from '../services/storage'
 import { showToast } from '../services/toast'
-import { softDeleteCompany } from '../services/supabase'
-import { smartAddCompany, smartUpdateCompany } from '../services/smartCompanies'
-import { Edit, PlusCircle, Save, X, Trash2 } from 'lucide-react'
+import { createCompany, updateCompany } from '../services/supabasePure'
+import { Save, X } from 'lucide-react'
 
 type Props = {
   open: boolean,
@@ -37,11 +35,11 @@ export default function CompaniesModal({ open, onClose, initial }: Props){
       console.log('💾 Starting save operation...')
       if (isEditing) {
         console.log('📝 Editing existing company')
-        await smartUpdateCompany(form.id, form.code, form.name)
+        await updateCompany(form.id, form.code, { name: form.name })
         showToast('Empresa actualizada', 'success')
       } else {
         console.log('➕ Adding new company')
-        await smartAddCompany(form.id, form.code, form.name)
+        await createCompany({ id: form.id, code: form.code, name: form.name })
         showToast('Empresa agregada', 'success')
       }
 

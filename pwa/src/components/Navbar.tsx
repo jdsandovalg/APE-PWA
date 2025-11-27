@@ -1,115 +1,39 @@
 import React from 'react'
-import { Home, Calendar, DollarSign, DownloadCloud, Sun, Hammer, Upload } from 'lucide-react'
-import { loadMeters, loadTariffs, loadReadings, loadCurrentMeterId, loadMeterInfo, loadMigrationInfo, saveMeters, saveTariffs, saveReadings, saveMeterInfo, saveCurrentMeterId } from '../services/storage'
+import { Home, Calendar, DollarSign, Hammer, Sun, Building } from 'lucide-react'
+import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
 import { showToast } from '../services/toast'
-import { useOnlineStatus } from '../hooks/useOnlineStatus'
-import { ConnectionIndicator } from './ConnectionIndicator'
 
-function downloadJSON(obj: any, filename = 'apenergia-export.json'){
-  try{
-    const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' })
-    const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = filename
-    a.click()
-    URL.revokeObjectURL(url)
-  }catch(e){ console.error('export failed', e) }
-}
+export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'readings'|'tariffs'|'billing'|'meters'|'companies')=>void }){
+  const [meters, setMeters] = React.useState<MeterRecord[]>([])
+  const [currentMeterId, setCurrentMeterId] = React.useState<string>('')
+  const [loading, setLoading] = React.useState(true)
 
-function exportAll(){
-  try{
-    const meters = loadMeters()
-    const tariffs = loadTariffs()
-    const current_meter = loadCurrentMeterId()
-    const meter_info = loadMeterInfo()
-    const migration = loadMigrationInfo()
-    // gather readings per meter id
-    const readingsByMeter: Record<string, any[]> = {}
-    Object.keys(meters || {}).forEach(mId => {
-      try{ readingsByMeter[mId] = loadReadings(mId) }catch(e){ readingsByMeter[mId] = [] }
-    })
+  React.useEffect(() => {
+    loadMeterData()
+  }, [])
 
-      // also include a raw snapshot of localStorage keys (helps with backups/migrations)
-      const rawLocal: Record<string,string> = {}
-      for (let i=0;i<localStorage.length;i++){
-        try{ const k = localStorage.key(i) || ''; rawLocal[k] = localStorage.getItem(k) || '' }catch(e){}
+  async function loadMeterData(){
+    try {
+      setLoading(true)
+      const metersData = await getAllMeters()
+      setMeters(metersData)
+      
+      // Set current meter (use first one if available)
+      if (metersData.length > 0) {
+        setCurrentMeterId(metersData[0].id)
       }
-
-      const payload = {
-        exportedAt: new Date().toISOString(),
-        meters,
-        current_meter,
-        meter_info,
-        readings: readingsByMeter,
-        tariffs,
-        migration,
-        localStorage: rawLocal
-      }
-      // filename: use correlativo + contador + date (YYYY-MM-DD) when available
-      const mi = meter_info || { correlativo: '', contador: '' }
-      const safeCorrel = String(mi.correlativo || '').replace(/[^0-9A-Za-z-_]/g, '')
-      const safeCont = String(mi.contador || '').replace(/[^0-9A-Za-z-_]/g, '')
-      const today = new Date().toISOString().split('T')[0]
-      const filename = (safeCorrel || safeCont) ? `${safeCorrel}_${safeCont}-${today}.json` : `apenergia-export-${today}.json`
-      downloadJSON(payload, filename)
-      showToast('Exportación completa: descargando archivo', 'success')
-  }catch(e){ console.error('exportAll failed', e) }
-}
-
-function importAllFromFile(file: File){
-  const reader = new FileReader()
-  reader.onload = (ev) => {
-    try{
-      const txt = String(ev.target?.result || '')
-      const payload = JSON.parse(txt)
-      // Prefer structured fields when present
-      if (payload.meters) try{ saveMeters(payload.meters); showToast('Medidores importados', 'success') }catch(e){}
-      if (payload.current_meter) try{ saveCurrentMeterId(payload.current_meter); showToast('Contador actual importado', 'success') }catch(e){}
-      if (payload.meter_info) try{ saveMeterInfo(payload.meter_info); showToast('Información del contador importada', 'success') }catch(e){}
-      if (payload.tariffs) try{ saveTariffs(payload.tariffs); showToast('Tarifas importadas', 'success') }catch(e){}
-      if (payload.readings) {
-        // readings is expected to be an object keyed by meter id
-        try{
-          Object.keys(payload.readings).forEach(mid => {
-            try{ saveReadings(payload.readings[mid] || [], mid) }catch(e){}
-          })
-          showToast('Lecturas importadas', 'success')
-        }catch(e){}
-      }
-      // If a raw localStorage snapshot exists, restore unknown keys
-      if (payload.localStorage && typeof payload.localStorage === 'object'){
-        try{
-          Object.keys(payload.localStorage).forEach(k => {
-            try{ localStorage.setItem(k, payload.localStorage[k]) }catch(e){}
-          })
-          showToast('LocalStorage restaurado (claves importadas)', 'success')
-        }catch(e){}
-      }
-      showToast('Importación finalizada. Recarga la página para ver los cambios.', 'info')
-    }catch(err){
-      console.error('Import failed', err)
-      showToast('Error al importar: archivo inválido', 'error')
+    } catch (error) {
+      console.error('Error loading meters:', error)
+      showToast('Error cargando medidores', 'error')
+    } finally {
+      setLoading(false)
     }
   }
-  reader.onerror = (e) => { console.error('file read error', e); showToast('Error leyendo el archivo', 'error') }
-  reader.readAsText(file)
-}
 
-export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'readings'|'tariffs'|'billing')=>void }){
-  const fileRef = React.useRef<HTMLInputElement | null>(null)
-  const { isOnline, isConnecting } = useOnlineStatus()
-
-  function onImportClick(){
-    try{ fileRef.current && fileRef.current.click() }catch(e){}
-  }
-
-  function onFileChange(e: React.ChangeEvent<HTMLInputElement>){
-    const f = e.target.files && e.target.files[0]
-    if (!f) return
-    importAllFromFile(f)
-    // reset so same file can be picked again if needed
-    try{ e.currentTarget.value = '' }catch(e){}
+  function handleMeterChange(meterId: string) {
+    setCurrentMeterId(meterId)
+    // In a full implementation, you might want to persist this selection
+    // For now, just update local state
   }
 
   return (
@@ -123,17 +47,10 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
             <h1 className="text-xl sm:text-2xl font-bold">AutoProductor Energía</h1>
             <p className="hidden sm:block text-sm text-gray-300">Gestión de Autoproducción</p>
           </div>
-          <ConnectionIndicator isOnline={isOnline} isConnecting={isConnecting} />
         </div>
 
         <div className="flex items-center gap-2">
-          <input ref={fileRef} type="file" accept="application/json" onChange={onFileChange} style={{ display: 'none' }} />
-          <button onClick={onImportClick} className="glass-button px-2 py-1 sm:px-3 sm:py-2 flex items-center gap-2 opacity-50 cursor-not-allowed" title="Importar datos (deshabilitado)" disabled>
-            <Upload size={16} />
-          </button>
-          <button onClick={exportAll} className="glass-button px-2 py-1 sm:px-3 sm:py-2 flex items-center gap-2 opacity-50 cursor-not-allowed" title="Exportar datos (deshabilitado)" disabled>
-            <DownloadCloud size={16} />
-          </button>
+          {/* Botones de import/export removidos - ahora usa Supabase directamente */}
         </div>
       </div>
 
@@ -142,13 +59,34 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
             <h3 className="text-sm text-gray-300">Información del contador</h3>
-            <p className="text-sm text-gray-200 mt-1">{loadMeterInfo().contador} — {loadMeterInfo().propietaria}</p>
-            <div className="text-xs text-gray-400 mt-1">{loadMeterInfo().distribuidora} · {loadMeterInfo().tipo_servicio} · Correlativo: {loadMeterInfo().correlativo}</div>
+            {loading ? (
+              <p className="text-sm text-gray-400 mt-1">Cargando...</p>
+            ) : meters.length > 0 ? (
+              <>
+                <p className="text-sm text-gray-200 mt-1">
+                  {meters.find(m => m.id === currentMeterId)?.contador || 'N/A'} — {meters.find(m => m.id === currentMeterId)?.propietaria || 'N/A'}
+                </p>
+                <div className="text-xs text-gray-400 mt-1">
+                  {meters.find(m => m.id === currentMeterId)?.distribuidora || 'N/A'} · {meters.find(m => m.id === currentMeterId)?.tipo_servicio || 'N/A'} · Correlativo: {meters.find(m => m.id === currentMeterId)?.correlativo || 'N/A'}
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-gray-400 mt-1">No hay medidores configurados</p>
+            )}
           </div>
           <div className="flex items-center gap-2">
             <label className="text-xs text-gray-400">Medidor activo</label>
-            <select className="bg-transparent border border-white/10 text-white px-2 py-1 rounded" value={loadCurrentMeterId()} onChange={(e)=>{ try{ saveCurrentMeterId(e.target.value); window.location.reload() }catch(e){} }}>
-              {Object.keys(loadMeters()).map(k => (<option key={k} value={k}>{k} — {loadMeters()[k].propietaria}</option>))}
+            <select 
+              className="bg-transparent border border-white/10 text-white px-2 py-1 rounded" 
+              value={currentMeterId} 
+              onChange={(e) => handleMeterChange(e.target.value)}
+              disabled={loading || meters.length === 0}
+            >
+              {meters.map(meter => (
+                <option key={meter.id} value={meter.id}>
+                  {meter.contador} — {meter.propietaria}
+                </option>
+              ))}
             </select>
           </div>
         </div>
@@ -167,6 +105,10 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
           <button onClick={()=>onNavigate('tariffs')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 w-full sm:w-auto`} style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
             <DollarSign size={16} />
             <span className="font-medium text-sm text-left">Tarifas</span>
+          </button>
+          <button onClick={()=>onNavigate('companies')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 w-full sm:w-auto`} style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+            <Building size={16} />
+            <span className="font-medium text-sm text-left">Compañías</span>
           </button>
           <button onClick={()=>onNavigate('billing')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 w-full sm:w-auto`} style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
             <Hammer size={16} />

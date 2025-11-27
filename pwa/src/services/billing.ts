@@ -1,5 +1,3 @@
-import { TariffSet, findActiveTariffForDate } from './storage'
-
 type InvoiceBreakdown = {
   consumption_kWh: number,
   production_kWh?: number,
@@ -53,11 +51,23 @@ export function computeInvoiceForPeriod(consumption_kWh: number, production_kWh:
     }
   }
 
-  const { rates, header } = tariff
+  const rates = tariff.rates || tariff
+
+  // Debug: print input and rates to help diagnose zero charges
+  try{
+    console.log('[billing] computeInvoiceForPeriod:', { date, consumption_kWh, production_kWh, credits_kWh, ratesKeys: Object.keys(rates || {}).join(',') })
+    console.log('[billing] rates sample:', {
+      energy: rates.energy_Q_per_kWh || rates.energy_q_per_kwh,
+      distribution: rates.distribution_Q_per_kWh || rates.distribution_q_per_kwh,
+      potencia_per_kwh: rates.potencia_Q_per_kWh || rates.potencia_q_per_kwh,
+      potencia_fixed: rates.potencia_Q || rates.potencia_q,
+      fixed_charge: rates.fixedCharge_Q || rates.fixed_charge_q
+    })
+  }catch(e){ /* ignore logging errors */ }
 
   // determine fixed charge application: use value as-is (tariff fixedCharge_Q is applied per billing period)
   // NOTE: do not prorate by months — tariffs represent the period fixed amounts month-to-month as requested.
-  const fixedChargeApplied = Number(rates.fixedCharge_Q || 0)
+  const fixedChargeApplied = Number(rates.fixedCharge_Q || rates.fixed_charge_q || 0)
 
   // helper: no rounding of intermediate values — keep full precision and round only final monetary outputs
   const round2 = (v:number) => Math.round((v + Number.EPSILON) * 100) / 100
@@ -65,12 +75,22 @@ export function computeInvoiceForPeriod(consumption_kWh: number, production_kWh:
   // apply credits in kWh (if provided) by reducing net consumption (affects energy charge)
   // Net energy depends on production: if you produce more than consume, net energy is zero.
   const netConsumption = Math.max(0, consumption_kWh - production_kWh - credits_kWh)
-  const raw_energy = netConsumption * Number(rates.energy_Q_per_kWh || 0)
+  const raw_energy = netConsumption * Number(rates.energy_Q_per_kWh || rates.energy_q_per_kwh || 0)
   // distribution applies to the energy consumed from the grid (consumo), not to injected production
   // Use the gross consumption_kWh as base for distribution charge.
-  const raw_distribution = consumption_kWh * Number(rates.distribution_Q_per_kWh || 0)
+  const raw_distribution = consumption_kWh * Number(rates.distribution_Q_per_kWh || rates.distribution_q_per_kwh || 0)
   // Potencia (if modelled per-kWh) should likewise be applied to consumption.
-  const raw_potencia = consumption_kWh * Number(rates.potencia_Q_per_kWh || 0)
+  const raw_potencia = consumption_kWh * Number(rates.potencia_Q_per_kWh || rates.potencia_q_per_kwh || 0) + Number(rates.potencia_Q || rates.potencia_q || 0)
+
+  // Debug: show computed potencia components
+  try{
+    console.log('[billing] potencia calc:', {
+      consumo: consumption_kWh,
+      potencia_per_kwh: Number(rates.potencia_Q_per_kWh || rates.potencia_q_per_kwh || 0),
+      potencia_fixed: Number(rates.potencia_Q || rates.potencia_q || 0),
+      raw_potencia
+    })
+  }catch(e){ }
 
   const energy_charge = raw_energy
   const distribution_charge = raw_distribution
@@ -104,11 +124,6 @@ export function computeInvoiceForPeriod(consumption_kWh: number, production_kWh:
     total_due_Q: total_due,
     tariff
   }
-}
-
-export function getActiveTariff(company?: string, segment?: string, date?: string){
-  const d = date || new Date().toISOString()
-  return findActiveTariffForDate(d, company, segment)
 }
 
 export type { InvoiceBreakdown }
