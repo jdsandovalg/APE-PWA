@@ -1,5 +1,5 @@
 // Simple DOM toast utility (no React dependency) - easy to call from anywhere
-type ToastType = 'info'|'success'|'error'
+type ToastType = 'info'|'success'|'error'|'warning'
 
 function ensureContainer(){
   let c = document.getElementById('ap-toast-container')
@@ -33,6 +33,7 @@ export function showToast(message: string, type: ToastType = 'info', duration = 
   el.style.animation = 'slideIn 260ms ease'
   if (type === 'success') el.style.background = 'linear-gradient(90deg,#10b981,#059669)'
   else if (type === 'error') el.style.background = 'linear-gradient(90deg,#ef4444,#dc2626)'
+  else if (type === 'warning') el.style.background = 'linear-gradient(90deg,#f59e0b,#d97706)'
   else el.style.background = 'linear-gradient(90deg,#374151,#111827)'
 
   c.appendChild(el)

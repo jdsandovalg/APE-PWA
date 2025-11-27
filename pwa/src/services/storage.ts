@@ -96,7 +96,8 @@ export type TariffHeader = {
   period: { from: string, to: string },
   effectiveAt?: string,
   currency?: string,
-  sourcePdf?: string
+  sourcePdf?: string,
+  deleted_at?: string,  // Soft delete
 }
 
 export type TariffSet = { header: TariffHeader, rates: TariffDetail }
@@ -105,8 +106,8 @@ export type TariffSet = { header: TariffHeader, rates: TariffDetail }
 export type CompanyInfo = {
   id: string,
   name: string,
-  code?: string,
-  deleted_at?: string  // Soft delete
+  code: string,
+  deleted_at?: string,  // Soft delete
 }
 
 const COMPANIES_KEY = 'apenergia:companies'

@@ -2,6 +2,8 @@ import React from 'react'
 import { Home, Calendar, DollarSign, DownloadCloud, Sun, Hammer, Upload } from 'lucide-react'
 import { loadMeters, loadTariffs, loadReadings, loadCurrentMeterId, loadMeterInfo, loadMigrationInfo, saveMeters, saveTariffs, saveReadings, saveMeterInfo, saveCurrentMeterId } from '../services/storage'
 import { showToast } from '../services/toast'
+import { useOnlineStatus } from '../hooks/useOnlineStatus'
+import { ConnectionIndicator } from './ConnectionIndicator'
 
 function downloadJSON(obj: any, filename = 'apenergia-export.json'){
   try{
@@ -96,6 +98,7 @@ function importAllFromFile(file: File){
 
 export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'readings'|'tariffs'|'billing')=>void }){
   const fileRef = React.useRef<HTMLInputElement | null>(null)
+  const { isOnline, isConnecting } = useOnlineStatus()
 
   function onImportClick(){
     try{ fileRef.current && fileRef.current.click() }catch(e){}
@@ -120,6 +123,7 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
             <h1 className="text-xl sm:text-2xl font-bold">AutoProductor Energía</h1>
             <p className="hidden sm:block text-sm text-gray-300">Gestión de Autoproducción</p>
           </div>
+          <ConnectionIndicator isOnline={isOnline} isConnecting={isConnecting} />
         </div>
 
         <div className="flex items-center gap-2">

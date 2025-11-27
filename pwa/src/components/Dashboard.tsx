@@ -4,7 +4,8 @@ import MeterModal from './MeterModal'
 import ConfirmModal from './ConfirmModal'
 import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
-import { getCompaniesCount, getCompaniesList, syncCompaniesFromSupabase, getTariffsCount, getTariffsList, syncTariffsFromSupabase, getReadingsCount, getReadingsList, syncReadingsFromSupabase } from '../services/supabase'
+import { getCompaniesCount, getCompaniesList, getTariffsCount, getTariffsList, syncTariffsFromSupabase, getReadingsCount, getReadingsList, syncReadingsFromSupabase } from '../services/supabase'
+import { smartSyncCompanies } from '../services/smartCompanies'
 import { exportPDF } from '../utils/pdfExport'
 import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Edit, Users, Upload, Download, X, Plus, Building2, Gauge, Settings } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area, LabelList } from 'recharts'
@@ -49,10 +50,10 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
   const [migrationInfo, setMigrationInfo] = React.useState<any | null>(()=> loadMigrationInfo())
   const exportingRef = React.useRef(false)
 
-  // Sync companies from Supabase on mount
+  // Smart sync companies from Supabase on mount
   React.useEffect(() => {
-    syncCompaniesFromSupabase().catch(err => {
-      console.error('Sync failed:', err)
+    smartSyncCompanies().catch(err => {
+      console.error('Smart sync failed:', err)
       showToast('Error sincronizando compañías, usando datos locales', 'warning')
     })
   }, [])

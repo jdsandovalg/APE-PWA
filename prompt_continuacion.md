@@ -1,5 +1,12 @@
 # Prompt para Continuar Desarrollo - AutoProductorEnergia
 
+## Estado Actual Recordado:
+- ✅ Cambios subidos exitosamente a GIT (commit bb8b089)
+- 📋 **Próximas tareas prioritarias**:
+  1. Corregir fechas incorrectas de tarifas Q3 y Q4
+  2. Implementar solución definitiva para exportación PDF
+  3. Añadir validaciones automáticas en la UI
+
 ## Estado Actual del Proyecto (25 de noviembre de 2025)
 
 ### ✅ Trabajo Completado Recientemente
