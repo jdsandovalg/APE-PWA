@@ -1,0 +1,37 @@
+Lecturas 	Resultado
+29/Sep/2025 	28/Ago/2025 	Sep
+Entregada kWh 	1,403 	1,235 	168
+Recibida kWh 	3,498 	3,180 	318
+‐150 	kWh
+Mes anterior 	Mes actual 	Total
+IVA Q 	0.00 	7.61 	7.61
+Factura Electrónica en Línea (FEL) Serie:53AB68B9 No.967854723 Autorización:53AB68B9-39B0-4A83-8372-6A43BCC51D0D
+Documento Tributario Electrónico. Fecha de Certificación: 29/09/25 15:01:04, Certificador: INFILE, S.A. NIT: 12521337
+Sujeto a pagos trimestrales (No retener ISR). Agente de retención Dto. 20-2006 (No retener IVA)
+REF PARA BANCOS 	CORRELATIVO 	CONTADOR
+No. 305008733 	661116 	Z90018
+Baja Tensión Simple Autoproductor BTSA / Ago ‐ Oct 2025
+VILMA SUSANA ROJAS CASTILLO
+2 CALLE 8‐84 C.9 MIXCO‐08 V.DEALCALA ZONA 8
+MIXCO, GUATEMALA
+NIT: 623758‐4
+TOTAL A PAGAR 	Fecha de emisión 29/09/2025
+Q 79.78
+Si cancela después del 29/10/2025 tendrá un recargo de mora de Q 0.72
+Detalle de cargos 	Precios Q 	Consumos _ 	_ 	Total Q.
+Cargo fijo por cliente (Sin IVA) 	13.136031 	13.14
+Energía neta (Sin IVA) 	1.136754 	0 kWh 	0.00
+Cargo por distribución (Sin IVA) 	0.245609 	168 kWh 	41.26
+Cargo por potencia (Sin IVA) 	0.053700 	168 kWh 	9.02
+Total cargo (Sin IVA) 	63.42
+Total cargo (Con IVA) 	71.03
+Contribución A.P. (cobro cta. de terceros) (Sin IVA) 	13.8% 	8.75
+Total de esta factura 	79.78
+Crédito kWh anterior(+) Inyección(+) Aplicación(‐) Crédito kWh mes actual
+1,850 	150 	0 	2,000
+Le hemos servido durante 32 días
+Servicio 24 Horas los 365 días del año
+*305008733‐661116*
+
+-- 1 of 1 --
+

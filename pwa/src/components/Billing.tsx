@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react'
+import { BarChart2 } from 'lucide-react'
 import { getAllTariffs, getReadings, type TariffRecord, type ReadingRecord } from '../services/supabasePure'
 import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
 import { supabase } from '../services/supabase'
 import InvoiceModal from './InvoiceModal'
+import InvoiceCompareModal from './InvoiceCompareModal'
 
 function currency(v:number){ return `Q ${v.toFixed(2)}` }
 
@@ -19,6 +21,8 @@ export default function Billing(){
   const [useCumulativeCredits, setUseCumulativeCredits] = useState<boolean>(false)
   const [selectedRow, setSelectedRow] = useState<any | null>(null)
   const [showInvoice, setShowInvoice] = useState(false)
+  const [showCompare, setShowCompare] = useState(false)
+  const [compareRow, setCompareRow] = useState<any | null>(null)
   const [loading, setLoading] = useState(true)
   const [currentMeterId, setCurrentMeterId] = useState<string>('')
   const [currentMeter, setCurrentMeter] = useState<MeterRecord | null>(null)
@@ -99,19 +103,19 @@ export default function Billing(){
                 <div className="overflow-x-auto">
                   <table className="min-w-full text-left text-xs table-fixed" style={{ borderCollapse: 'collapse' }}>
                     <colgroup>
-                      <col style={{ width: '25%' }} />
+                      <col style={{ width: '28%' }} />
+                      <col style={{ width: '8%' }} />
                       <col style={{ width: '9%' }} />
-                      <col style={{ width: '11.111111%' }} />
-                      <col style={{ width: '11.111111%' }} />
-                      <col style={{ width: '11.111111%' }} />
-                      <col style={{ width: '11.111111%' }} />
-                      <col style={{ width: '11.111111%' }} />
-                      <col style={{ width: '11.111111%' }} />
-                      <col style={{ width: '11.111111%' }} />
+                      <col style={{ width: '9%' }} />
+                      <col style={{ width: '9%' }} />
+                      <col style={{ width: '9%' }} />
+                      <col style={{ width: '9%' }} />
+                      <col style={{ width: '9%' }} />
+                      <col style={{ width: '9%' }} />
                     </colgroup>
                     <thead>
                       <tr>
-                        <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm sticky top-0 text-center text-white text-xs">Fecha</th>
+                        <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm sticky top-0 text-left text-white text-xs">Fecha</th>
                         <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm text-center text-white text-xs tuncate">Consumo kWh</th>
                         <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm text-center text-white text-xs">Cargo fijo</th>
                         <th className="px-2 py-2 border border-white/10 bg-white/6 backdrop-blur-sm text-center text-white text-xs">Energía neta</th>
@@ -124,8 +128,16 @@ export default function Billing(){
                     </thead>
                     <tbody>
                       {resultsByMonth.map((r:any, idx:number)=> (
-                        <tr key={idx} onClick={()=>{ setSelectedRow(r); setShowInvoice(true) }} className={`border-t border-white/5 ${idx % 2 === 0 ? 'bg-white/2' : ''} text-xs hover:bg-white/5 cursor-pointer`}>
-                          <td className="px-1 py-1 border border-white/10 align-top whitespace-normal">{r.date}</td>
+                        <tr key={idx} className={`border-t border-white/5 ${idx % 2 === 0 ? 'bg-white/2' : ''} text-xs hover:bg-white/5`}>
+                          <td onClick={()=>{ setSelectedRow(r); setShowInvoice(true) }} className="px-2 py-2 border border-white/10 align-top whitespace-nowrap flex items-center gap-2">
+                            <div className="relative inline-block group">
+                              <button aria-label={`Comparar PDF para ${r.date}`} title="Comparar PDF" className="p-1 text-white focus:outline-none" onClick={(e)=>{ e.stopPropagation(); setCompareRow(r); setShowCompare(true) }} onKeyDown={(e)=>{ if(e.key==='Enter'){ e.stopPropagation(); setCompareRow(r); setShowCompare(true) } }}>
+                                <BarChart2 size={16} className="text-white" />
+                              </button>
+                              <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 transform hidden group-hover:block group-focus:block bg-black text-white text-2xs px-2 py-1 rounded whitespace-nowrap">Comparar PDF</span>
+                            </div>
+                            <span className="truncate">{r.date}</span>
+                          </td>
                           <td className="px-2 py-2 border border-white/10 text-right align-top whitespace-nowrap">
                             <div className="text-2xs text-gray-400">kWh</div>
                             <div className="font-medium text-xs">{Number(r.consumption_kWh || 0).toLocaleString()}</div>
@@ -189,6 +201,8 @@ export default function Billing(){
       </div>
       {/* Invoice modal */}
       <InvoiceModal open={showInvoice} onClose={()=>setShowInvoice(false)} row={selectedRow} />
+      {/* Compare modal */}
+      <InvoiceCompareModal open={showCompare} onClose={()=>setShowCompare(false)} row={compareRow} />
     </section>
   )
 }

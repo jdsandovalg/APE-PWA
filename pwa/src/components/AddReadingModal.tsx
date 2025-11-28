@@ -1,5 +1,5 @@
 import React from 'react'
-import { getReadings, saveReadings, getAllTariffs, type ReadingRecord, type TariffRecord } from '../services/supabasePure'
+import { getReadings, saveReadings, getAllTariffs, createReading, type ReadingRecord, type TariffRecord } from '../services/supabasePure'
 import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
 import { showToast } from '../services/toast'
 import { X, Save } from 'lucide-react'
@@ -23,7 +23,7 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
   const [form, setForm] = React.useState<FormState>({ date: new Date().toISOString().split('T')[0], consumption: '', production: '', days: 0 })
   const [readings, setReadings] = React.useState<ReadingRecord[]>([])
   const [meters, setMeters] = React.useState<MeterRecord[]>([])
-  const [tariffs, setTariffs] = React.useState<TariffRecord[]>([])
+  const [tariffs, setTariffs] = React.useState<any[]>([])
   const [loading, setLoading] = React.useState(false)
 
   React.useEffect(() => {
@@ -95,7 +95,7 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
     computeDays(v)
   }
 
-  function handleSave(){
+  async function handleSave(){
     // basic validation
     if (!form.date){ showToast('Seleccione una fecha', 'error'); return }
     const consumption = Number(form.consumption || 0)
@@ -119,15 +119,24 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
       // Validate there is an active tariff matching the meter's distribuidora/company and service/segment
       const company = currentMeter.distribuidora || undefined
       const segment = currentMeter.tipo_servicio || undefined
-      const activeTariff = tariffs.find(tariff => {
-        const fromDate = new Date(tariff.period_from)
-        const toDate = new Date(tariff.period_to)
-        const targetDate = new Date(form.date)
+      const targetDate = new Date(form.date)
+
+      // Support both shapes: legacy flat TariffRecord (period_from/period_to) and TariffSet (header.period)
+      function tariffMatches(tariff: any){
+        const fromRaw = tariff.period_from ?? tariff.header?.period?.from
+        const toRaw = tariff.period_to ?? tariff.header?.period?.to
+        if (!fromRaw || !toRaw) return false
+        const fromDate = new Date(fromRaw)
+        const toDate = new Date(toRaw)
         const matchesDate = targetDate >= fromDate && targetDate <= toDate
-        const matchesCompany = !company || tariff.company === company
-        const matchesSegment = !segment || tariff.segment === segment
+        const tCompany = tariff.company ?? tariff.header?.company
+        const tSegment = tariff.segment ?? tariff.header?.segment
+        const matchesCompany = !company || tCompany === company
+        const matchesSegment = !segment || tSegment === segment
         return matchesDate && matchesCompany && matchesSegment
-      })
+      }
+
+      const activeTariff = tariffs.find(tariffMatches)
       
       if (!activeTariff) { 
         showToast('No existe una tarifa activa para la fecha seleccionada y el medidor configurado. Añada o asigne una tarifa (empresa/segmento) antes de guardar.', 'error')
@@ -143,30 +152,37 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
       date: new Date(form.date).toISOString(), 
       consumption, 
       production,
-      meter_id: meters[0]?.id || '',
+      // Use contador as the public meter identifier so reads match getReadings(currentMeterId)
+      meter_id: meters[0]?.contador || '',
       credit: 0 // Default credit value
     }
     
     try {
       setLoading(true)
-      
+
       if (typeof editingIndex === 'number' && editingIndex >= 0 && editingIndex < readings.length) {
-        // For editing, we need to update the existing reading
-        // This would require an update function - for now, we'll recreate the array
-        const updatedReadings = [...readings]
-        updatedReadings[editingIndex] = reading as ReadingRecord
-        // Note: This is a simplified approach. In a real implementation, 
-        // you'd want to update the specific record in Supabase
+        // Editing: not fully implemented yet
         showToast('Funcionalidad de edición no implementada completamente', 'warning')
       } else {
-        // Add new reading
-        const updatedReadings = [reading as ReadingRecord, ...readings]
-        // Note: In a real implementation, this should call saveReadings with the new array
-        // For now, we'll just show success
-        showToast('Lectura guardada', 'success')
+        // Add new reading: persist to Supabase using createReading
+        // createReading expects (meterId, reading)
+        try {
+          await createReading(reading.meter_id, reading)
+          showToast('Lectura guardada en Supabase', 'success')
+        } catch (err: any) {
+          console.error('Error creating reading in Supabase', err)
+          const msg = err?.message ? `Error guardando lectura en Supabase: ${err.message}` : 'Error guardando lectura en Supabase'
+          showToast(msg, 'error')
+          return
+        }
       }
-      
-      onSaved()
+
+      // Ensure parent refresh completes before closing the modal
+      try {
+        await onSaved()
+      } catch (e) {
+        // parent might not return a promise, ignore
+      }
       onClose()
     } catch(e) {
       console.error('save reading', e)

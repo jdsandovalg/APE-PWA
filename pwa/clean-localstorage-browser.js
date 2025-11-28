@@ -44,31 +44,7 @@
   }
 
   // Función para limpiar completamente
-  function clearEverything() {
-    console.log('🧹 LIMPIANDO TODOS LOS DATOS DE LA APLICACIÓN...')
+  // This browser console helper has been archived to `pwa/jsutils/originals_backup/clean-localstorage-browser.js`
+  // Use that copy if you need the original behavior. The repo copy here is neutralized for safety.
 
-    const { appKeys } = inspectStorage()
-
-    appKeys.forEach(key => {
-      localStorage.removeItem(key)
-      console.log(`   🗑️ ${key}`)
-    })
-
-    console.log('\n✅ LOCALSTORAGE LIMPIO')
-    console.log('🔄 Recarga la página (F5) para que la aplicación use solo Supabase')
-  }
-
-  // Ejecutar inspección inicial
-  const result = inspectStorage()
-
-  // Exponer funciones globales
-  window.inspectStorage = inspectStorage
-  window.clearEverything = clearEverything
-
-  console.log('\n💡 COMANDOS DISPONIBLES:')
-  console.log('   inspectStorage() - Re-inspeccionar')
-  console.log('   clearEverything() - LIMPIAR TODO localStorage')
-
-  console.log('\n⚠️ RECOMENDACIÓN: Ejecuta clearEverything() y recarga la página')
-  console.log('   Después, el TariffTester debería mostrar solo datos de Supabase')
-})()
+  console.log('This utility has been archived to pwa/jsutils/originals_backup/clean-localstorage-browser.js');

@@ -1,8 +1,14 @@
 import { createClient } from '@supabase/supabase-js'
 
-// Configuración de Supabase
-const supabaseUrl = 'https://wtczfdkldixaptrskjwb.supabase.co'
-const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind0Y3pmZGtsZGl4YXB0cnNrandiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTY2NTk1NDIsImV4cCI6MjA3MjIzNTU0Mn0.paNwJUSuKaisbdMmK_J77LKTs4HpfKwgvv3cJz9pqI4'
+// Configuración de Supabase (desde variables de entorno)
+const supabaseUrl = process.env.SUPABASE_URL || process.env.SUPABASE_PUBLIC_URL
+const supabaseAnonKey = process.env.SUPABASE_ANON_KEY || process.env.SUPABASE_PUBLIC_ANON_KEY
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error('Missing SUPABASE_URL and SUPABASE_ANON_KEY environment variables.')
+  console.error('Set SUPABASE_URL and SUPABASE_ANON_KEY before running this script.')
+  process.exit(1)
+}
 
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 

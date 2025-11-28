@@ -1,0 +1,22 @@
+{
+  "id": "EEGSA-BTSA-2025Q4",
+  "company": "EEGSA",
+  "company_code": "BTSA",
+  "segment": "BTSA",
+  "period_from": "2025-08-01",
+  "period_to": "2025-10-31",
+  "effective_at": "2025-08-01",
+  "currency": "GTQ",
+  "source_pdf": "auto-copied-backward",
+  "fixed_charge_q": 13.136031,
+  "energy_q_per_kwh": 1.136754,
+  "distribution_q_per_kwh": 0.245609,
+  "potencia_q_per_kwh": 0.0537,
+  "contrib_percent": 13.8,
+  "iva_percent": 12,
+  "notes": "Auto-copied from EEGSA-BTSA-20251101_20260101 for 2025Q3",
+  "deleted_at": null,
+  "created_at": "2025-11-26T23:58:40.449854",
+  "updated_at": "2025-11-26T23:58:40.449854",
+  "last_synced_at": "2025-11-26T23:58:40.449854"
+}

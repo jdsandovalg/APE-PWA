@@ -1,0 +1,67 @@
+[
+  {
+    "concept": "Fecha emisión",
+    "pdf": "29/09/2025",
+    "system": "2025-01-29"
+  },
+  {
+    "concept": "Contador",
+    "pdf": "-",
+    "system": "-"
+  },
+  {
+    "concept": "Consumo kWh",
+    "pdf": 168,
+    "system": 118
+  },
+  {
+    "concept": "Producción kWh",
+    "pdf": "-",
+    "system": 462
+  },
+  {
+    "concept": "Cargo fijo (Q)",
+    "pdf": "13.14",
+    "system": "13.14"
+  },
+  {
+    "concept": "Energía (Q)",
+    "pdf": "-",
+    "system": "0.00"
+  },
+  {
+    "concept": "Distribución (Q)",
+    "pdf": "-",
+    "system": "41.26"
+  },
+  {
+    "concept": "Potencia (Q)",
+    "pdf": "-",
+    "system": "9.02"
+  },
+  {
+    "concept": "Subtotal (Sin IVA)",
+    "pdf": "-",
+    "system": "63.42"
+  },
+  {
+    "concept": "IVA (Q)",
+    "pdf": "-",
+    "system": "7.61"
+  },
+  {
+    "concept": "Subtotal (Con IVA)",
+    "pdf": "-",
+    "system": "71.03"
+  },
+  {
+    "concept": "Contribución A.P. (Q)",
+    "pdf": "13.80",
+    "system": "8.75"
+  },
+  {
+    "concept": "Total factura (Q)",
+    "pdf": "-",
+    "system": "79.78"
+  }
+]

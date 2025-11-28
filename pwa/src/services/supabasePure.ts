@@ -202,7 +202,7 @@ export function convertToTariffSet(record: TariffRecord): any {
       fixedCharge_Q: record.fixed_charge_q,
       energy_Q_per_kWh: record.energy_q_per_kwh,
       distribution_Q_per_kWh: record.distribution_q_per_kwh,
-      potencia_Q_per_kWh: record.potencia_q_per_kWh,
+      potencia_Q_per_kWh: record.potencia_q_per_kwh,
       contrib_percent: record.contrib_percent,
       iva_percent: record.iva_percent,
       notes: record.notes
@@ -225,7 +225,7 @@ export function convertFromTariffSet(tariffSet: any): Omit<TariffRecord, 'delete
     fixed_charge_q: tariffSet.rates.fixedCharge_Q,
     energy_q_per_kwh: tariffSet.rates.energy_Q_per_kWh,
     distribution_q_per_kwh: tariffSet.rates.distribution_Q_per_kWh,
-    potencia_q_per_kWh: tariffSet.rates.potencia_Q_per_kWh,
+    potencia_q_per_kwh: tariffSet.rates.potencia_Q_per_kWh,
     contrib_percent: tariffSet.rates.contrib_percent,
     iva_percent: tariffSet.rates.iva_percent,
     notes: tariffSet.rates.notes

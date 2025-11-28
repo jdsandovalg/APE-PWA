@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react'
 import { X } from 'lucide-react'
 import { getReadings, type ReadingRecord } from '../services/supabasePure'
+import { extractTextFromPdf, parseSimpleInvoiceText } from '../utils/pdfClientValidator'
 
 type Props = {
   open: boolean
@@ -10,6 +11,8 @@ type Props = {
 
 export default function InvoiceModal({ open, onClose, row }: Props){
   const [readings, setReadings] = React.useState<ReadingRecord[]>([])
+  const [pdfStatus, setPdfStatus] = React.useState<'idle'|'parsing'|'done'|'error'>('idle')
+  const [parsedPdf, setParsedPdf] = React.useState<any | null>(null)
 
   React.useEffect(() => {
     if (open) {
@@ -62,6 +65,21 @@ export default function InvoiceModal({ open, onClose, row }: Props){
   ]
 
   const total = Number(invoice.total_due_Q || 0)
+
+  async function onPdfFile(file?: File | null) {
+    if (!file) return
+    setPdfStatus('parsing')
+    setParsedPdf(null)
+    try {
+      const text = await extractTextFromPdf(file)
+      const parsed = parseSimpleInvoiceText(text)
+      setParsedPdf({ parsed, rawTextSnippet: text.slice(0, 200) })
+      setPdfStatus('done')
+    } catch (e) {
+      console.error('PDF parse error', e)
+      setPdfStatus('error')
+    }
+  }
 
   // Attempt to locate associated cumulative readings (original readings array)
   // Billing builds rows from deltas where `row.date` is YYYY-MM-DD; find the matching
