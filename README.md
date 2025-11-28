@@ -118,4 +118,12 @@ Para soporte técnico o reportar problemas, utiliza los issues del repositorio.
 
 ---
 
-**Última actualización**: 25 de noviembre de 2025
+## 🆕 Últimas mejoras (2025-11-28)
+
+- Añadido modal de comparación de facturas (`pwa/src/components/InvoiceCompareModal.tsx`) para subir PDFs y comparar línea a línea con los cálculos del sistema.
+- Parser cliente para PDF (`pwa/src/utils/pdfClientValidator.ts`) usando `pdfjs-dist` y heurísticas de extracción para cargos y totales.
+- Mejora en la tabla de facturación: icono de comparar integrado en la columna `Fecha`, tooltip accesible y correcciones visuales.
+- Herramientas de auditoría y utilidades consolidadas en `pwa/jsutils/` (scripts de validación y recomputo).
+- Ajustes en Git: PDFs de ejemplo removidos del índice y añadidos a `.gitignore` para evitar subir binarios grandes.
+
+**Última actualización**: 28 de noviembre de 2025

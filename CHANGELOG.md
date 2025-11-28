@@ -95,6 +95,25 @@ cd pwa
 
 _Generado automáticamente el 2025-11-27_
 
+## Unreleased - 2025-11-28
+
+### 🔎 Comparación de facturas (UI + herramientas)
+- **UI:** Añadido `InvoiceCompareModal` en `pwa/src/components/InvoiceCompareModal.tsx` — modal que permite subir un PDF de factura, extraer líneas relevantes y mostrar una comparación visual PDF vs sistema.
+- **Billing UX:** Moved the compare icon inside the `Fecha` column (`pwa/src/components/Billing.tsx`), added a hover/focus tooltip `Comparar PDF` and replaced the inline SVG with `lucide-react` icons for consistent styling.
+- **Parser (cliente):** Added `pwa/src/utils/pdfClientValidator.ts` using `pdfjs-dist` to extract text in-browser and heuristics (`parseInvoiceDetailed`, `parseSimpleInvoiceText`) to obtain fixed charge, energía, distribución, potencia, contribución, IVA y total.
+- **Tools (jsutils):** Consolidated utility scripts under `pwa/jsutils/` (audit scripts, PDF validation, recompute helpers, and CLI test runners). Many scripts were added to aid invoice reconciliation and tariff inspection.
+- **Debug & Robustness:** Added a small debug panel in the modal to display parsed JSON and values for quick diagnosis; fixed a hooks ordering bug in the modal so React no longer errors on open/close.
+- **Behavioral change:** Removed the automatic header OK/DIF badge because it produced confusing results for some invoices; comparison is now intentionally visual and transparent.
+
+### 🧰 Repo & Git
+- **Removed large PDFs from index:** PDFs used for parser validation were removed from the git index and `/*.pdf` was added to `.gitignore` so local copies remain but are not pushed.
+- **Commits:** UI and tooling changes were committed and pushed in `main` (see commits around 2025-11-27 .. 2025-11-28).
+
+### 📝 Notas y próximos pasos
+- Tuning: `parseInvoiceDetailed` is validated against one sample (`2025 - Noviembre - 661116`) and may need additional regex tweaks for other invoice formats. Consider running the existing `pwa/jsutils/test_parse_november.cjs` and adding more samples.
+- Bundle size: `pdfjs-dist` pulls a worker that increases bundle size; consider dynamic import or server-side parsing for production.
+
+
 ### Problemas de Exportación PDF
 - **Fix**: Resueltos problemas críticos con la exportación de PDFs que causaban gráficos incompletos y datos faltantes
 - **Fix**: Aumentado el ancho de gráficos de 1200px a 1600px para mejor visualización de datos
