@@ -59,6 +59,25 @@ npm run dev
 - Service Worker: `public/sw.js`
 - Manifest: `manifest.json`
 
+How to use the Invoice Compare modal
+------------------------------------
+
+1. Open the app and go to the **Facturación** / Billing view.
+2. In the table, find the row for the invoice period you want to inspect. The small bar-chart icon is next to the date.
+3. Click the icon (or focus + Enter) to open the **Comparar factura** modal.
+4. In the modal, click **Subir PDF** and choose the invoice PDF file. The app parses the PDF locally (client-side) and displays a side-by-side comparison of the PDF values vs the system-calculated values.
+5. Use the **Descargar diff** button to export a JSON file with parsed PDF fields and the system invoice object for offline analysis.
+
+Notes and privacy
+-----------------
+- PDF parsing is performed in the browser using `pdfjs-dist`; the file is not uploaded anywhere unless you explicitly export/share the JSON diff.
+- If the parser fails to detect fields correctly, open the debug panel in the modal (bug icon) to inspect the raw parsed JSON and the snippet extracted from the PDF.
+
+Troubleshooting
+---------------
+- If the compare icon doesn't appear, try refreshing the page — HMR should display the updated icon.
+- If totals look different, verify the invoice's numeric formats (commas vs dots) and use the debug panel to see what the parser extracted.
+
 Notas:
 - Importa CSV con cabeceras `date,consumption,production,credit`.
 - Exporta datos en JSON para backup.
