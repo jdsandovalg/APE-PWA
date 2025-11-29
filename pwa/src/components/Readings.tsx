@@ -22,6 +22,42 @@ export default function Readings(){
 
   useEffect(() => {
     loadInitialData()
+
+    const handler = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent).detail || {}
+        const meterId = detail.meterId
+        if (!meterId) return
+        // reload readings for the selected meter
+        ;(async () => {
+          try {
+            setLoading(true)
+            const meter = await getMeterByContador(meterId)
+            if (meter) {
+              setCurrentMeterId(meter.contador)
+              setMeterInfo({
+                contador: meter.contador,
+                correlativo: meter.correlativo,
+                propietaria: meter.propietaria,
+                nit: meter.nit,
+                distribuidora: meter.distribuidora,
+                tipo_servicio: meter.tipo_servicio,
+                sistema: meter.sistema
+              })
+              const readings = await getReadings(meter.contador)
+              setData(readings)
+            } else {
+              // if not found, try full reload
+              await loadInitialData()
+            }
+          } catch (err) { console.warn('Error handling ape:meterChange in Readings', err) }
+          finally { setLoading(false) }
+        })()
+      } catch (err) { console.warn('Error handling ape:meterChange', err) }
+    }
+
+    window.addEventListener('ape:meterChange', handler as EventListener)
+    return () => { window.removeEventListener('ape:meterChange', handler as EventListener) }
   }, [])
 
   async function loadInitialData() {
@@ -31,7 +67,9 @@ export default function Readings(){
       // Get all meters and set first one as current
       const meters = await getAllMeters()
       if (meters.length > 0) {
-        const currentId = meters[0].contador
+        const persisted = (() => { try { return localStorage.getItem('ape_currentMeterId') } catch (e) { return null } })()
+        const chosen = persisted ? (meters.find(m => m.id === persisted) || meters[0]) : meters[0]
+        const currentId = chosen.contador
         setCurrentMeterId(currentId)
 
         // Get meter info

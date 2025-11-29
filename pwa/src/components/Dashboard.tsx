@@ -1,6 +1,7 @@
 import React from 'react'
+import { motion } from 'framer-motion'
 import { getAllCompanies, getAllTariffs, getReadings, saveReadings, createPreviousQuartersFromActive, type CompanyRecord, type TariffRecord, type ReadingRecord } from '../services/supabasePure'
-import { getAllMeters, createMeter, updateMeter } from '../services/supabaseBasic'
+import { getAllMeters, getMeterById, createMeter, updateMeter } from '../services/supabaseBasic'
 import MeterModal from './MeterModal'
 import ConfirmModal from './ConfirmModal'
 import { showToast } from '../services/toast'
@@ -12,6 +13,15 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianG
 function currency(v:number){ return `Q ${v.toFixed(2)}` }
 
 export default function Dashboard({ onNavigate }: { onNavigate: (view: string) => void }){
+  /**
+   * Dashboard
+   * ---------
+   * Displays metrics for the currently selected meter. Selection is read from
+   * `localStorage.ape_currentMeterId` and via `ape:meterChange` global events.
+   * Recent UI improvements:
+   * - Pull-to-refresh spinner while `loadAllData()` runs.
+   * - Card entrance animation using `framer-motion`.
+   */
   const [meters, setMeters] = React.useState<any[]>([])
   const [currentMeterId, setCurrentMeterId] = React.useState<string>('')
   const [meterInfo, setMeterInfo] = React.useState<any>({})
@@ -36,9 +46,41 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
 
     const handler = (e: Event) => {
       try {
-        // Always reload the dashboard data when the meter selection changes.
-        // This avoids stale closures over `meters`/`readings` and ensures mobile clients refresh.
-        loadAllData()
+        const detail = (e as CustomEvent).detail || {}
+        const meterIdFromEvent = detail.meterId
+
+        ;(async () => {
+          try {
+            // Prefer fetching the specific meter row and its readings to update UI quickly
+            const persisted = (() => { try { return localStorage.getItem('ape_currentMeterId') } catch (e) { return null } })() || meterIdFromEvent
+            if (persisted) {
+              try {
+                // Try to resolve persisted as an id first, then as a contador
+                let m = await getMeterById(persisted)
+                if (!m) {
+                  try {
+                    m = await (await import('../services/supabaseBasic')).getMeterByContador(persisted)
+                  } catch (e) {
+                    // ignore
+                  }
+                }
+
+                if (m) {
+                  setCurrentMeterId(m.id)
+                  setMeterInfo(m)
+                  // fetch only readings for this meter to minimize data transferred
+                  const rr = await getReadings(m.contador || m.id)
+                  setReadings(rr)
+                }
+              } catch (err) {
+                console.warn('Error fetching meter/readings on meterChange:', err)
+              }
+            }
+            // Also refresh all other data in background to keep everything in sync
+            try { await loadAllData() } catch(e){ /* ignore */ }
+          } catch (err) { console.warn('Async handler error for ape:meterChange', err) }
+        })()
+
       } catch (err) { console.warn('Error handling ape:meterChange', err) }
     }
 
@@ -104,7 +146,12 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
       // Set current meter (use persisted selection if available, otherwise first)
       if (metersData.length > 0) {
         const persisted = (() => { try { return localStorage.getItem('ape_currentMeterId') } catch (e) { return null } })()
-        const currentMeter = persisted ? (metersData.find(m => m.id === persisted) || metersData[0]) : metersData[0]
+        // allow persisted to be either meter.id (uuid) or meter.contador (human readable)
+        let currentMeter = null
+        if (persisted) {
+          currentMeter = metersData.find(m => m.id === persisted) || metersData.find(m => m.contador === persisted) || null
+        }
+        if (!currentMeter) currentMeter = metersData[0]
         setCurrentMeterId(currentMeter.id)
         setMeterInfo(currentMeter)
         // Filter readings to current meter
@@ -308,15 +355,25 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
       <div style={{ height: pullDistance }} className="pointer-events-none">
         {pullDistance > 0 && (
           <div className="w-full flex items-center justify-center">
-            <div className="text-xs text-gray-300 py-2">
-              {isRefreshing ? 'Refrescando...' : pullDistance >= 80 ? 'Suelta para actualizar' : 'Desliza para actualizar'}
-            </div>
+            {isRefreshing ? (
+              <div className="flex items-center gap-2">
+                <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-white/40 border-b-2 border-transparent" />
+                <div className="text-xs text-gray-300 py-2">Refrescando...</div>
+              </div>
+            ) : (
+              <div className="text-xs text-gray-300 py-2">
+                {pullDistance >= 80 ? 'Suelta para actualizar' : 'Desliza para actualizar'}
+              </div>
+            )}
           </div>
         )}
       </div>
-      <div className="grid grid-cards gap-4 sm:grid-cols-1 md:grid-cols-2">
+      <motion.div initial="hidden" animate="visible" variants={{
+        hidden: {},
+        visible: { transition: { staggerChildren: 0.03 } }
+      }} className="grid grid-cards gap-4 sm:grid-cols-1 md:grid-cols-2">
         {/* Buttons to manage meter info: create new or update existing */}
-        <div className="card min-h-28">
+        <motion.div whileHover={{ y: -4 }} className="card min-h-28">
           <div className="flex items-center justify-between w-full">
             <div className="pr-4">
               <h3 className="text-xs text-gray-300">Medidor / Información</h3>
@@ -326,8 +383,8 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
               <button className="glass-button p-2" title="Gestionar medidores" aria-label="Gestionar medidores" onClick={()=> onNavigate('meters')}><Settings size={14} /></button>
             </div>
           </div>
-        </div>
-        <div className="card min-h-28">
+        </motion.div>
+        <motion.div whileHover={{ y: -4 }} className="card min-h-28">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xs text-gray-300">Maestro de Compañías</h3>
@@ -340,8 +397,8 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
               <button className="glass-button p-2" title="Compañías" aria-label="Compañías" onClick={()=> onNavigate('companies')}><Building size={14} /></button>
             </div>
           </div>
-        </div>
-        <div className="card min-h-28">
+        </motion.div>
+        <motion.div whileHover={{ y: -4 }} className="card min-h-28">
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-xs text-gray-300">Tarifas</h3>
@@ -354,7 +411,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
               <button className="glass-button p-2" title="Tarifas" aria-label="Tarifas" onClick={()=> onNavigate('tariffs')}><DollarSign size={14} /></button>
             </div>
           </div>
-        </div>
+        </motion.div>
         <div className="card min-h-28">
           <div className="flex items-center justify-between">
             <div>

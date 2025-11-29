@@ -6,6 +6,17 @@ import { PlusCircle, Edit2, Star, FileText } from 'lucide-react'
 import { exportMeterPDF } from '../utils/pdfExport'
 
 export default function Meters({ onNavigate }: { onNavigate: (view: string) => void }){
+  /**
+   * Meters list view
+   * ----------------
+   * This component lists meters and allows creating/updating them.
+   * Recent changes:
+   * - Persist selected meter in `localStorage` under `ape_currentMeterId`.
+   * - Dispatch `window.dispatchEvent(new CustomEvent('ape:meterChange', { detail: { meterId } }))`
+   *   when the star is clicked so other components (Navbar, Dashboard, Readings, Billing)
+   *   react to selection changes.
+   * - Toast now shows human-readable `contador — propietaria` instead of UUID when possible.
+   */
   const [meters, setMeters] = useState<MeterRecord[]>([])
   const [currentMeterId, setCurrentMeterId] = useState<string>('')
   const [loading, setLoading] = useState(true)
@@ -13,6 +24,9 @@ export default function Meters({ onNavigate }: { onNavigate: (view: string) => v
   const [editingMeter, setEditingMeter] = useState<MeterRecord | null>(null)
 
   useEffect(() => {
+    // restore persisted selected meter (if any) then load meters
+    const persisted = typeof window !== 'undefined' ? localStorage.getItem('ape_currentMeterId') : null
+    if (persisted) setCurrentMeterId(persisted)
     loadMetersData()
   }, [])
 
@@ -24,7 +38,14 @@ export default function Meters({ onNavigate }: { onNavigate: (view: string) => v
 
       // Set current meter to first one if available
       if (metersData.length > 0 && !currentMeterId) {
-        setCurrentMeterId(metersData[0].contador)
+        const first = metersData[0].id
+        setCurrentMeterId(first)
+        try {
+          localStorage.setItem('ape_currentMeterId', first)
+          window.dispatchEvent(new CustomEvent('ape:meterChange', { detail: { meterId: first } }))
+        } catch (e) {
+          // ignore storage errors in SSR or restricted env
+        }
       }
     } catch (error) {
       console.error('Error loading meters:', error)
@@ -45,8 +66,30 @@ export default function Meters({ onNavigate }: { onNavigate: (view: string) => v
   }
 
   function handleSetCurrent(meterId: string){
-    setCurrentMeterId(meterId)
-    showToast(`Medidor actual: ${meterId}`, 'success')
+    // meterId here should be the meter.id (uuid). Support callers passing contador by resolving to id.
+    let id = meterId
+    const matchById = meters.find(m => m.id === meterId)
+    if (!matchById) {
+      const matchByCont = meters.find(m => m.contador === meterId)
+      if (matchByCont) id = matchByCont.id
+    }
+
+    setCurrentMeterId(id)
+    try {
+      localStorage.setItem('ape_currentMeterId', id)
+      const resolved = meters.find(m => m.id === id) || meters.find(m => m.contador === id)
+      console.log('Dispatching ape:meterChange (from Meters star):', { meterId: id, contador: resolved?.contador })
+      window.dispatchEvent(new CustomEvent('ape:meterChange', { detail: { meterId: id } }))
+    } catch (e) {
+      // ignore
+    }
+    // Prefer showing human-readable contador and propietaria in the toast
+    const resolved = meters.find(m => m.id === id) || meters.find(m => m.contador === id)
+    if (resolved) {
+      showToast(`Medidor actual: ${resolved.contador} — ${resolved.propietaria}`, 'success')
+    } else {
+      showToast(`Medidor actual: ${id}`, 'success')
+    }
   }
 
   function handleModalClose(){

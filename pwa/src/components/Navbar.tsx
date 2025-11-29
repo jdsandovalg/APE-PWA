@@ -1,9 +1,18 @@
 import React from 'react'
+import { motion } from 'framer-motion'
 import { Home, Calendar, DollarSign, Hammer, Sun, Building } from 'lucide-react'
 import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
 import { showToast } from '../services/toast'
 
 export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'readings'|'tariffs'|'billing'|'meters'|'companies')=>void }){
+  /**
+   * Navbar / header
+   * ----------------
+   * Shows the current meter summary and a compact select to switch meters.
+   * It listens for global `ape:meterChange` events to update the header when
+   * other components change the active meter (e.g. the star action in `Meters`).
+   * It also emits `ape:meterChange` when the select changes.
+   */
   const [meters, setMeters] = React.useState<MeterRecord[]>([])
   const [currentMeterId, setCurrentMeterId] = React.useState<string>('')
   const [loading, setLoading] = React.useState(true)
@@ -11,6 +20,30 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
   React.useEffect(() => {
     loadMeterData()
   }, [])
+
+  // Listen to global meter change events so this navbar updates when other components (e.g. Meters) set the active meter
+  React.useEffect(() => {
+    const handler = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent).detail || {}
+        let meterId = detail.meterId
+        if (!meterId) return
+        // If event passed a contador, try to resolve to id
+        const foundById = meters.find(m => m.id === meterId)
+        if (foundById) {
+          setCurrentMeterId(foundById.id)
+          return
+        }
+        const foundByCont = meters.find(m => m.contador === meterId)
+        if (foundByCont) {
+          setCurrentMeterId(foundByCont.id)
+        }
+      } catch (err) { console.warn('Error handling ape:meterChange in Navbar', err) }
+    }
+
+    window.addEventListener('ape:meterChange', handler as EventListener)
+    return () => { window.removeEventListener('ape:meterChange', handler as EventListener) }
+  }, [meters])
 
   async function loadMeterData(){
     try {
@@ -20,7 +53,13 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
       
       // Set current meter (use first one if available)
       if (metersData.length > 0) {
-        setCurrentMeterId(metersData[0].id)
+        const persisted = localStorage.getItem('ape_currentMeterId')
+        const match = persisted ? metersData.find(m => m.id === persisted) : null
+        if (match) {
+          setCurrentMeterId(match.id)
+        } else {
+          setCurrentMeterId(metersData[0].id)
+        }
       }
     } catch (error) {
       console.error('Error loading meters:', error)
@@ -32,17 +71,33 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
 
   function handleMeterChange(meterId: string) {
     setCurrentMeterId(meterId)
-    // In a full implementation, you might want to persist this selection
-    // For now, just update local state
+    try {
+      localStorage.setItem('ape_currentMeterId', meterId)
+    } catch (e) { /* ignore localStorage errors */ }
+
+    // Log and show a human-friendly toast when selection changes from the listbox
+    try {
+      const resolved = meters.find(m => m.id === meterId) || meters.find(m => m.contador === meterId)
+      if (resolved) {
+        console.log('Dispatching ape:meterChange (from Navbar select):', { meterId: resolved.id, contador: resolved.contador })
+        showToast(`Medidor actual: ${resolved.contador} — ${resolved.propietaria}`, 'success')
+      } else {
+        console.log('Dispatching ape:meterChange (from Navbar select):', { meterId })
+      }
+    } catch (e) { /* ignore logging errors */ }
+
+    try {
+      window.dispatchEvent(new CustomEvent('ape:meterChange', { detail: { meterId } }))
+    } catch (e) { /* ignore dispatch errors */ }
   }
 
   return (
     <header>
       <div className="glass-card mb-4 p-4 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.45 }} className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
             <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
-          </div>
+          </motion.div>
           <div>
             <h1 className="text-xl sm:text-2xl font-bold">AutoProductor Energía</h1>
             <p className="hidden sm:block text-sm text-gray-300">Gestión de Autoproducción</p>
@@ -74,10 +129,11 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
               <p className="text-sm text-gray-400 mt-1">No hay medidores configurados</p>
             )}
           </div>
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-gray-400">Medidor activo</label>
+            <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-400">Medidor</label>
             <select 
-              className="bg-transparent border border-white/10 text-white px-2 py-1 rounded" 
+              className="bg-transparent border border-white/10 text-white px-1 py-0.5 rounded text-xs h-7" 
+              style={{ minWidth: 160 }}
               value={currentMeterId} 
               onChange={(e) => handleMeterChange(e.target.value)}
               disabled={loading || meters.length === 0}

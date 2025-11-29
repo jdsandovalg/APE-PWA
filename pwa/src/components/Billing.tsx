@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { BarChart2 } from 'lucide-react'
 import { getAllTariffs, getReadings, type TariffRecord, type ReadingRecord } from '../services/supabasePure'
+import { computeInvoiceForPeriod } from '../services/billing'
 import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
 import { supabase } from '../services/supabase'
 import InvoiceModal from './InvoiceModal'
@@ -29,17 +30,35 @@ export default function Billing(){
 
   useEffect(() => {
     loadData()
+
+    const handler = (e: Event) => {
+      try {
+        const detail = (e as CustomEvent).detail || {}
+        const meterId = detail.meterId
+        if (!meterId) return
+        // Reload data for the newly selected meter
+        loadData()
+        // Also re-run invoices computation after a small delay
+        setTimeout(()=>{ runFromDeltas().catch(()=>{}) }, 50)
+      } catch (err) { console.warn('Error handling ape:meterChange in Billing', err) }
+    }
+
+    window.addEventListener('ape:meterChange', handler as EventListener)
+    return () => { window.removeEventListener('ape:meterChange', handler as EventListener) }
   }, [])
 
   async function loadData() {
     try {
       setLoading(true)
       const metersData = await getAllMeters()
+      // Respect persisted selection if present
       let meterId = currentMeterId
       if (!meterId && metersData.length > 0) {
-        meterId = metersData[0].contador
+        const persisted = (() => { try { return localStorage.getItem('ape_currentMeterId') } catch (e) { return null } })()
+        const chosen = persisted ? (metersData.find(m => m.id === persisted) || metersData[0]) : metersData[0]
+        meterId = chosen.contador
         setCurrentMeterId(meterId)
-        setCurrentMeter(metersData[0])
+        setCurrentMeter(chosen)
       }
       const [tariffsData, readingsData] = await Promise.all([
         getAllTariffs(),
@@ -74,15 +93,95 @@ export default function Billing(){
       const { data, error } = await supabase.rpc('get_invoices', { meter_id_param: currentMeter.contador });
       if (error) throw error;
       // data is the array of invoices
-      const rows = data.map((inv: any) => ({
-        date: inv.invoice_date,
-        consumption_kWh: inv.consumption_kwh,
-        production_kWh: inv.production_kwh,
-        credit_kWh: inv.credit_kwh,
-        tariffId: inv.tariff_id,
-        invoice: inv.invoice_data
-      }));
-      setResultsByMonth(rows);
+      if (data && Array.isArray(data) && data.length > 0) {
+        const rows = data.map((inv: any) => ({
+          date: inv.invoice_date,
+          consumption_kWh: inv.consumption_kwh,
+          production_kWh: inv.production_kwh,
+          credit_kWh: inv.credit_kwh,
+          tariffId: inv.tariff_id,
+          invoice: inv.invoice_data
+        }))
+
+        // If the returned invoice tariff segment does not match the meter's tipo_servicio,
+        // prefer to compute a local invoice using the meter's correct segment (avoid BTSA vs BTSS mismatch).
+        const meterSegment = currentMeter?.tipo_servicio || null
+        if (meterSegment) {
+          const mismatched = rows.some(r => r.invoice && r.invoice.tariff && r.invoice.tariff.header && r.invoice.tariff.header.segment && r.invoice.tariff.header.segment !== meterSegment)
+          if (mismatched) {
+            // compute local fallbacks for each row using matched tariff
+            const today = new Date().toISOString()
+            const computedRows: any[] = []
+            for (const r of rows) {
+              // find tariff that matches meterSegment and date
+              let activeTariff: any = null
+              try {
+                activeTariff = tariffs.find((t:any) => {
+                  if (!t?.header) return false
+                  if (t.header.segment !== meterSegment) return false
+                  const from = t.header.period?.from ? new Date(t.header.period.from) : null
+                  const to = t.header.period?.to ? new Date(t.header.period.to) : null
+                  if (from && to) {
+                    const d = new Date(r.date || today)
+                    return d >= from && d <= to
+                  }
+                  return true
+                })
+              } catch (e) { /* ignore */ }
+              if (!activeTariff && tariffs.length>0) activeTariff = tariffs[0]
+              const invoice = computeInvoiceForPeriod(Number(r.consumption_kWh||0), Number(r.production_kWh||0), activeTariff || null, { forUnit: 'period', date: r.date || today })
+              invoice._computed_local = true
+              computedRows.push({ ...r, invoice, tariffId: activeTariff?.header?.id || null })
+            }
+            setResultsByMonth(computedRows)
+            return
+          }
+        }
+
+        setResultsByMonth(rows);
+      } else {
+        // RPC returned no invoices — build a fallback invoice using tariff fixed charge
+        // attempt to find tariff from local `tariffs` state using meter info
+        const meterCompany = currentMeter?.distribuidora || currentMeter?.propietaria || undefined
+        const meterSegment = currentMeter?.tipo_servicio || undefined
+        const today = new Date().toISOString()
+
+        // Prefer a tariff that matches company+segment and includes today's date
+        let activeTariff: any = null
+        try {
+          activeTariff = tariffs.find((t:any) => {
+            const from = t?.header?.period?.from ? new Date(t.header.period.from) : null
+            const to = t?.header?.period?.to ? new Date(t.header.period.to) : null
+            if (meterCompany && t.header.company !== meterCompany) return false
+            if (meterSegment && t.header.segment !== meterSegment) return false
+            if (from && to) {
+              const d = new Date(today)
+              return d >= from && d <= to
+            }
+            return true
+          })
+        } catch(e){ /* ignore */ }
+
+        // If not found, try any tariff for company+segment
+        if (!activeTariff && meterCompany) {
+          activeTariff = tariffs.find((t:any) => (t.header.company === meterCompany && (!meterSegment || t.header.segment === meterSegment)))
+        }
+
+        // If still not found, take the most recent tariff as last resort
+        if (!activeTariff && tariffs.length>0) activeTariff = tariffs[0]
+
+        // Compute invoice for zero consumption/production — fixed charge should apply
+        const invoice = computeInvoiceForPeriod(0, 0, activeTariff || null, { forUnit: 'month', date: today, credits_kWh: 0 })
+        const row = {
+          date: (new Date()).toISOString().split('T')[0],
+          consumption_kWh: 0,
+          production_kWh: 0,
+          credit_kWh: 0,
+          tariffId: activeTariff?.header?.id || null,
+          invoice
+        }
+        setResultsByMonth([row])
+      }
     } catch (e) {
       console.error('Error calling get_invoices', e);
       setResultsByMonth([]);
@@ -136,7 +235,12 @@ export default function Billing(){
                               </button>
                               <span className="pointer-events-none absolute -top-8 left-1/2 -translate-x-1/2 transform hidden group-hover:block group-focus:block bg-black text-white text-2xs px-2 py-1 rounded whitespace-nowrap">Comparar PDF</span>
                             </div>
-                            <span className="truncate">{r.date}</span>
+                            <div className="flex items-center gap-2">
+                              <span className="truncate">{r.date}</span>
+                              {r.invoice && r.invoice._computed_local && (
+                                <span className="text-[10px] text-yellow-300 bg-yellow-900/10 px-1 py-0.5 rounded">calculado local</span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-2 py-2 border border-white/10 text-right align-top whitespace-nowrap">
                             <div className="text-2xs text-gray-400">kWh</div>
