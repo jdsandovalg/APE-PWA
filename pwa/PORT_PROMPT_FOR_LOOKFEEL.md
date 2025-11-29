@@ -4,9 +4,98 @@ Este archivo contiene un prompt listo para usar con un agente (ChatGPT/GitHub Co
 
 Copia todo el contenido de este archivo y pégalo como la instrucción inicial al iniciar una sesión con el asistente en el otro proyecto.
 
----
 
 INSTRUCCIONES (PROMPT) — ESPAÑOL
+
+## Theme switch (Dark / Light) — Integración rápida
+
+Incluye un interruptor de tema y una configuración basada en CSS variables para que el proyecto receptor pueda adoptar fácilmente el mismo look & feel.
+
+- **Qué archivos añadir / revisar**:
+  - `src/utils/theme.ts`: utilidades para inicializar y cambiar el tema, persistencia en `localStorage` (clave: `ape_theme`) y aplicar el atributo `data-theme` al `document.documentElement`.
+  - `src/components/ThemeToggle.tsx`: pequeño componente React que alterna entre `dark` y `light` y ofrece un botón accesible para el usuario.
+  - `src/styles/index.css`: variables CSS para cada tema bajo `[data-theme="dark"]` y `[data-theme="light"]`, más mapeos de compatibilidad para utilidades Tailwind comunes (`.text-white`, `.text-gray-*`) que permitan una transición rápida sin refactorizar todas las clases.
+  - `src/components/Navbar.tsx` (o componente de cabecera): importar e insertar `ThemeToggle` en la barra superior.
+
+- **Principales decisiones**:
+  - La UI se controla con variables CSS: `--bg-1`, `--bg-2`, `--text`, `--muted`, `--accent`, etc. El HTML raíz usa `data-theme="dark"|"light"` para aplicar el bloque correcto.
+  - Persistencia simple en `localStorage` con la clave `ape_theme` para recordar la elección del usuario.
+  - Compatibilidad rápida para proyectos que usan utilidades Tailwind: un pequeño bloque CSS mapea `.text-white`, `.text-gray-50`... a las variables de tema para evitar un trabajo masivo de refactor.
+
+- **Snippet: `src/utils/theme.ts` (ejemplo compacto)**
+
+```ts
+const THEME_KEY = 'ape_theme';
+export function initTheme() {
+  const saved = localStorage.getItem(THEME_KEY) as 'dark' | 'light' | null;
+  const prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+  const theme = saved ?? (prefersDark ? 'dark' : 'light');
+  document.documentElement.setAttribute('data-theme', theme);
+}
+export function setTheme(name: 'dark'|'light'){
+  localStorage.setItem(THEME_KEY, name);
+  document.documentElement.setAttribute('data-theme', name);
+}
+export function toggleTheme(){
+  const cur = document.documentElement.getAttribute('data-theme') as 'dark'|'light'|'null';
+  const next = cur === 'dark' ? 'light' : 'dark';
+  setTheme(next);
+}
+```
+
+- **Snippet: `src/components/ThemeToggle.tsx` (ejemplo compacto)**
+
+```tsx
+import React from 'react';
+import {toggleTheme} from '../utils/theme';
+
+export default function ThemeToggle(){
+  return (
+    <button aria-label="Alternar tema" onClick={toggleTheme} className="p-2 rounded-md">
+      {/* Icono: sol/luna según data-theme (puede leer document.documentElement) */}
+      Tema
+    </button>
+  );
+}
+```
+
+- **Snippet: variables CSS básicas (añadir a `src/styles/index.css`)**
+
+```css
+:root{ --accent: #7c3aed; }
+[data-theme="light"]{
+  --bg-1: #f8fafc;
+  --bg-2: #ffffff;
+  --text: #0b1220;
+  --muted: #6b7280;
+  --accent: #6d28d9; /* morado */
+}
+[data-theme="dark"]{
+  --bg-1: #031024;
+  --bg-2: #071022;
+  --text: #e6eef6;
+  --muted: #9aa6b2;
+  --accent: #8b5cf6;
+}
+
+/* Compatibilidad rápida para utilidades de texto (stopgap): */
+.text-white{ color: var(--text) !important; }
+.text-gray-400{ color: var(--muted) !important; }
+/* Añade los mapeos que necesites aquí para cubrir utilidades usadas en el proyecto */
+```
+
+- **Integración rápida**:
+  1. Copia `theme.ts` y `ThemeToggle.tsx` al proyecto y registra `initTheme()` en el arranque (por ejemplo en `src/main.tsx` antes de renderizar React).
+  2. Añade las variables CSS al `index.css` o al archivo global de estilos y asegúrate de que el `index.html` (o el root) no tenga reglas que sobreescriban `data-theme`.
+  3. Inserta `ThemeToggle` en la `Navbar` o en la cabecera.
+  4. (Opcional, recomendado) Refactorizar colores Tailwind a variables en `tailwind.config.js` para una solución robusta a largo plazo. En el prompt original incluyo un ejemplo de configuración de `tailwind.config.js` para mapear colores a `var(--...)`.
+
+- **Notas y recomendaciones**:
+  - Uso temporal de `.text-white { color: var(--text) !important }` es un parche de compatibilidad al migrar; idealmente sustituir las utilidades Tailwind por clases semánticas (por ejemplo `.text-ape` o usar la configuración de tema de Tailwind) para mantener coherencia.
+  - Si el proyecto usa SSR (Next.js), sincroniza la elección de tema en el cliente en el primer render para evitar parpadeos (flash) de tema; la técnica es inyectar un pequeño script inline que lea `localStorage` y aplique `data-theme` antes de que React hidrate.
+  - Mantén la clave `ape_theme` para compatibilidad entre proyectos si deseas intercambiar usuarios/consejos entre instancias.
+
+Con esto la persona que reciba el prompt tendrá instrucciones claras y copiable para añadir el switch de temas y su configuración al proyecto destino.
 
 Actúa como un desarrollador front-end experto que debe portar el "look & feel" (UI/UX) de un proyecto fuente a otro proyecto destino. El proyecto fuente es una PWA React + TypeScript con Tailwind CSS, `framer-motion`, `lucide-react` y pequeñas utilidades (helpers), y cuenta con los siguientes rasgos visuales y de interacción que debes reproducir:
 
