@@ -25,11 +25,64 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
   const [tariffs, setTariffs] = React.useState<TariffRecord[]>([])
   const [readings, setReadings] = React.useState<ReadingRecord[]>([])
   const [loading, setLoading] = React.useState(true)
+  // Pull-to-refresh states (mobile)
+  const [touchStartY, setTouchStartY] = React.useState<number | null>(null)
+  const [pullDistance, setPullDistance] = React.useState<number>(0)
+  const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false)
 
   // Load all data from Supabase on mount
   React.useEffect(() => {
     loadAllData()
+
+    const handler = (e: Event) => {
+      try {
+        // Always reload the dashboard data when the meter selection changes.
+        // This avoids stale closures over `meters`/`readings` and ensures mobile clients refresh.
+        loadAllData()
+      } catch (err) { console.warn('Error handling ape:meterChange', err) }
+    }
+
+    window.addEventListener('ape:meterChange', handler as EventListener)
+    return () => { window.removeEventListener('ape:meterChange', handler as EventListener) }
   }, [])
+
+  // Pull-to-refresh handlers
+  function onTouchStart(e: React.TouchEvent) {
+    if (window.scrollY === 0 && !isRefreshing) {
+      setTouchStartY(e.touches[0].clientY)
+      setPullDistance(0)
+    }
+  }
+
+  function onTouchMove(e: React.TouchEvent) {
+    if (touchStartY == null) return
+    const dy = e.touches[0].clientY - touchStartY
+    if (dy > 0) {
+      // user is pulling down
+      const capped = Math.min(dy, 140)
+      setPullDistance(capped)
+      // prevent default scrolling when pulling to show indicator
+      if (capped > 0) e.preventDefault()
+    } else {
+      setPullDistance(0)
+    }
+  }
+
+  async function onTouchEnd() {
+    if (touchStartY == null) return
+    try {
+      if (pullDistance >= 80) {
+        setIsRefreshing(true)
+        await loadAllData()
+      }
+    } catch (err) {
+      console.warn('Error during pull-to-refresh', err)
+    } finally {
+      setIsRefreshing(false)
+      setPullDistance(0)
+      setTouchStartY(null)
+    }
+  }
 
   async function loadAllData(){
     try {
@@ -48,9 +101,10 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
       setTariffs(tariffsData)
       setReadings(readingsData)
 
-      // Set current meter (use first one if available)
+      // Set current meter (use persisted selection if available, otherwise first)
       if (metersData.length > 0) {
-        const currentMeter = metersData[0]
+        const persisted = (() => { try { return localStorage.getItem('ape_currentMeterId') } catch (e) { return null } })()
+        const currentMeter = persisted ? (metersData.find(m => m.id === persisted) || metersData[0]) : metersData[0]
         setCurrentMeterId(currentMeter.id)
         setMeterInfo(currentMeter)
         // Filter readings to current meter
@@ -103,11 +157,16 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
   function findActiveTariffForDate(date: string, company?: string, segment?: string) {
     const targetDate = new Date(date)
     const activeTariffs = tariffs.filter(tariff => {
-      const fromDate = new Date(tariff.header.period.from)
-      const toDate = new Date(tariff.header.period.to)
+      // Support multiple tariff shapes: either `tariff.header.period.from/to` or `tariff.period_from` / `tariff.period_to`
+      const fromStr = tariff?.header?.period?.from || tariff?.period_from || tariff?.header?.period_from || tariff?.header?.from
+      const toStr = tariff?.header?.period?.to || tariff?.period_to || tariff?.header?.period_to || tariff?.header?.to
+      const fromDate = fromStr ? new Date(fromStr) : new Date('1970-01-01')
+      const toDate = toStr ? new Date(toStr) : new Date('2999-12-31')
       const matchesDate = targetDate >= fromDate && targetDate <= toDate
-      const matchesCompany = !company || tariff.header.company === company
-      const matchesSegment = !segment || tariff.header.segment === segment
+      const tariffCompany = tariff?.header?.company || tariff?.company || tariff?.company_code
+      const tariffSegment = tariff?.header?.segment || tariff?.segment
+      const matchesCompany = !company || tariffCompany === company
+      const matchesSegment = !segment || tariffSegment === segment
       return matchesDate && matchesCompany && matchesSegment
     })
 
@@ -136,8 +195,10 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
 
   const netMonth = consumptionMonth - productionMonth
 
-  // Find active tariff for this date and segment EEGSA/BTSA
-  const activeTariff = findActiveTariffForDate(new Date().toISOString(), 'EEGSA', 'BTSA')
+  // Find active tariff for this date and using current meter info (distribuidora/company, tipo_servicio/segment)
+  const companyParam = meterInfo?.distribuidora || undefined
+  const segmentParam = meterInfo?.tipo_servicio || undefined
+  const activeTariff = findActiveTariffForDate(new Date().toISOString(), companyParam, segmentParam)
 
   // Compute invoice for the month: prorate fixed charge per month
   const invoice = activeTariff ? computeInvoiceForPeriod(consumptionMonth, productionMonth, activeTariff, { forUnit: 'month', date: new Date().toISOString(), credits_kWh: creditAccum }) : { total_due_Q: 0 }
@@ -238,7 +299,21 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
   } catch (e) { chartRows = []; cumulativeRows = [] }
 
   return (
-    <section id="dashboard-printable">
+    <section id="dashboard-printable"
+      onTouchStart={onTouchStart}
+      onTouchMove={onTouchMove}
+      onTouchEnd={onTouchEnd}
+    >
+      {/* Pull-to-refresh indicator */}
+      <div style={{ height: pullDistance }} className="pointer-events-none">
+        {pullDistance > 0 && (
+          <div className="w-full flex items-center justify-center">
+            <div className="text-xs text-gray-300 py-2">
+              {isRefreshing ? 'Refrescando...' : pullDistance >= 80 ? 'Suelta para actualizar' : 'Desliza para actualizar'}
+            </div>
+          </div>
+        )}
+      </div>
       <div className="grid grid-cards gap-4 sm:grid-cols-1 md:grid-cols-2">
         {/* Buttons to manage meter info: create new or update existing */}
         <div className="card min-h-28">
