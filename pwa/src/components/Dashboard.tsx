@@ -510,7 +510,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                   ><PlusCircle size={14} /><span className="hidden md:inline">Crear trimestres anteriores (KIS)</span></button>
         </div>
         {/* meter info will be rendered at the top */}
-      </div>
+      </motion.div>
 
       {/* Line chart card */}
       <div className="glass-card mt-6 p-4">
