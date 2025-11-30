@@ -524,7 +524,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="date" tick={{ fill: 'var(--text)', fontSize: 9 }} />
                 <YAxis tick={{ fill: 'var(--text)', fontSize: 9 }} />
-                <Tooltip formatter={(value: any) => `${value} kWh`} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} />
+                <Tooltip formatter={(value: any) => `${value} kWh`} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} />
                 <Legend wrapperStyle={{ color: 'var(--text)' }} />
                 <Line type="monotone" dataKey="net" name="Neto (kWh)" stroke="#38bdf8" strokeWidth={3} dot={false} isAnimationActive={false} />
                 <Line type="monotone" dataKey="production" name="Producción" stroke="#34d399" strokeWidth={2.5} dot={false} isAnimationActive={false} />
@@ -549,7 +549,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                 <Tooltip formatter={(value: any, name: any, props: any) => {
                   if (name === 'avg') return [`${Number(value).toFixed(2)} kWh/d`, 'Promedio']
                   return [`${value} kWh`, name]
-                }} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} />
+                }} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} />
                 <Legend wrapperStyle={{ color: 'var(--text)' }} />
                 <Line type="monotone" dataKey="avg" name="kWh/día (avg)" stroke="#f59e0b" strokeWidth={2.5} dot={false} isAnimationActive={false} connectNulls={true}>
                   <LabelList dataKey="avg" position="top" style={{ fontSize: 8, fill: 'var(--text)' }} formatter={(v:any)=> v==null?'-':Number(v).toFixed(2)} />
@@ -574,7 +574,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                 <Tooltip formatter={(value: any, name: any) => {
                   if (name === 'avg') return [`${Number(value).toFixed(2)} kWh/d`, 'Promedio']
                   return [`${value} kWh`, name]
-                }} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} />
+                }} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} />
                 <Legend wrapperStyle={{ color: 'var(--text)' }} />
                 <Line type="monotone" dataKey="avg" name="kWh/día (avg)" stroke="#34d399" strokeWidth={2} dot={{ r: 3 }} isAnimationActive={false}>
                   <LabelList dataKey="avg" position="top" style={{ fontSize: 7, fill: 'var(--text)' }} formatter={(v:any)=> v==null?'-':Number(v).toFixed(2)} />
@@ -596,7 +596,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis dataKey="date" tick={{ fill: 'var(--text)', fontSize: 8 }} />
                 <YAxis tick={{ fill: 'var(--text)', fontSize: 8 }} />
-                <Tooltip formatter={(value: any) => `${value} kWh`} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} />
+                <Tooltip formatter={(value: any) => `${value} kWh`} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} />
                 <Legend wrapperStyle={{ color: 'var(--text)' }} />
                 <Area type="monotone" dataKey="positive" name="Saldo positivo (kWh)" stroke="#34d399" fill="#134e4a" fillOpacity={0.6} />
                 <Area type="monotone" dataKey="negative" name="Saldo negativo (abs kWh)" stroke="#fb7185" fill="#4c0519" fillOpacity={0.6} />
