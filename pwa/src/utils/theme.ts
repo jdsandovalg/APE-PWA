@@ -5,6 +5,8 @@ export type Theme = 'dark' | 'light' | 'auto'
 const THEME_KEY = 'ape_theme'
 const COORDS_KEY = 'ape_coords'
 const ASKED_KEY = 'ape_geo_asked'
+// coordinates TTL (ms) - default 7 days
+const COORDS_TTL = 1000 * 60 * 60 * 24 * 7
 
 type Coords = { lat: number; lng: number; ts?: number }
 
@@ -72,17 +74,23 @@ export function hasStoredCoords(): boolean {
   try {
     const raw = localStorage.getItem(COORDS_KEY)
     if (!raw) return false
-    const parsed = JSON.parse(raw)
-    return !!(parsed && typeof parsed.lat === 'number' && typeof parsed.lng === 'number')
+    const parsed = JSON.parse(raw) as Coords
+    if (!(parsed && typeof parsed.lat === 'number' && typeof parsed.lng === 'number')) return false
+    // check freshness
+    if (!parsed.ts) return false
+    if (Date.now() - parsed.ts > COORDS_TTL) return false
+    return true
   } catch (e) { return false }
 }
 
-export function wasAskedForGeolocation(): boolean {
-  try { return localStorage.getItem(ASKED_KEY) === '1' } catch (e) { return false }
+export type GeoAskStatus = 'accepted' | 'declined' | null
+
+export function getGeoAskStatus(): GeoAskStatus {
+  try { const v = localStorage.getItem(ASKED_KEY); return (v === 'accepted' || v === 'declined') ? (v as GeoAskStatus) : null } catch (e) { return null }
 }
 
-export function markAskedForGeolocation() {
-  try { localStorage.setItem(ASKED_KEY, '1') } catch (e) {}
+export function markGeoAskStatus(s: 'accepted' | 'declined'){
+  try { localStorage.setItem(ASKED_KEY, s) } catch (e) {}
 }
 
 export async function applyAutoTheme(): Promise<'dark' | 'light' | null> {
@@ -109,9 +117,13 @@ export function requestBrowserGeolocation(timeout = 10000): Promise<boolean> {
         (pos) => {
           const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude, ts: Date.now() }
           try { localStorage.setItem(COORDS_KEY, JSON.stringify(coords)) } catch (e) {}
+          try { markGeoAskStatus('accepted') } catch (e) {}
           resolve(true)
         },
-        () => resolve(false),
+        () => {
+          try { markGeoAskStatus('declined') } catch (e) {}
+          resolve(false)
+        },
         { maximumAge: 0, timeout }
       )
     } catch (e) { resolve(false) }

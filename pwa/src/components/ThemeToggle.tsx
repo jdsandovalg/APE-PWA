@@ -1,6 +1,7 @@
 import React from 'react'
 import { Sun, Moon, Clock } from 'lucide-react'
-import themeUtil, { initTheme, getStoredTheme } from '../utils/theme'
+import ConfirmModal from './ConfirmModal'
+import themeUtil, { initTheme, getStoredTheme, getGeoAskStatus, hasStoredCoords } from '../utils/theme'
 
 export default function ThemeToggle(){
   const [mode, setMode] = React.useState<'light'|'dark'|'auto'>(() => {
@@ -16,57 +17,60 @@ export default function ThemeToggle(){
     else setMode(t as 'light'|'dark')
   }, [])
 
+  const [showAsk, setShowAsk] = React.useState(false)
+
   function handleToggle(){
     const next = mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light'
     setMode(next)
     if (next === 'auto') {
-      // If we already have stored coords, or we already asked before, don't prompt again.
-      if (themeUtil.hasStoredCoords()) {
-        themeUtil.setAutoMode()
-        // re-apply immediately with stored coords
-        void themeUtil.applyAutoTheme()
-      } else if (themeUtil.wasAskedForGeolocation()) {
-        // User already declined/was asked previously — enable auto using Geo-IP fallback without prompting
+      // If we already have fresh stored coords -> use precise silently
+      if (hasStoredCoords()) {
         themeUtil.setAutoMode()
         void themeUtil.applyAutoTheme()
-      } else {
-        // Ask once for permission to get precise browser geolocation; if declined we markAsked to avoid repeating
-        try {
-          const ask = window.confirm('Modo Auto usa ubicación aproximada por IP. ¿Permitir ubicación más precisa (preguntará al navegador)?')
-          if (ask) {
-            themeUtil.requestBrowserGeolocation().then(ok => {
-              if (ok) {
-                // reapply auto theme using newly stored coords
-                void themeUtil.applyAutoTheme()
-                themeUtil.markAskedForGeolocation()
-              } else {
-                // user accepted prompt but geolocation failed/denied — mark as asked
-                themeUtil.markAskedForGeolocation()
-                themeUtil.setAutoMode()
-                void themeUtil.applyAutoTheme()
-              }
-            })
-          } else {
-            // user declined to be asked now; remember choice and use Geo-IP fallback
-            themeUtil.markAskedForGeolocation()
+        return
+      }
+
+      const geoStatus = getGeoAskStatus()
+      if (geoStatus === 'declined') {
+        // user already declined before -> enable auto with Geo-IP silently
+        themeUtil.setAutoMode()
+        void themeUtil.applyAutoTheme()
+        return
+      }
+
+      if (geoStatus === 'accepted') {
+        // user accepted previously but coords expired: try silent request to refresh coords
+        themeUtil.requestBrowserGeolocation(8000).then(ok => {
+          if (ok) {
             themeUtil.setAutoMode()
             void themeUtil.applyAutoTheme()
+          } else {
+            // fallback to Geo-IP
+            themeUtil.setAutoMode()
+            void themeUtil.applyAutoTheme()
+            themeUtil.markGeoAskStatus('declined')
           }
-        } catch (e) {
-          // fallback: enable auto using Geo-IP
-          themeUtil.markAskedForGeolocation()
-          themeUtil.setAutoMode()
-          void themeUtil.applyAutoTheme()
-        }
+        })
+        return
       }
+
+      // never asked -> open modal to ask once
+      setShowAsk(true)
     } else themeUtil.setTheme(next)
   }
 
   const icon = mode === 'auto' ? <Clock size={16} /> : mode === 'light' ? <Sun size={16} /> : <Moon size={16} />
+  const autoBadge = mode === 'auto' ? (hasStoredCoords() ? 'GPS' : 'IP') : null
 
   return (
-    <button aria-label="Toggle theme" title="Tema" onClick={handleToggle} className="glass-button p-2 flex items-center justify-center" style={{ width:36, height:36 }}>
-      {icon}
-    </button>
+    <>
+      <ConfirmModal open={showAsk} title="Usar ubicación precisa?" message="Modo Auto usa ubicación aproximada por IP para calcular amanecer/anochecer. ¿Permitir ubicación más precisa (el navegador pedirá permiso)?" onCancel={()=>{ setShowAsk(false); themeUtil.markGeoAskStatus('declined'); themeUtil.setAutoMode(); void themeUtil.applyAutoTheme() }} onConfirm={()=>{ setShowAsk(false); themeUtil.requestBrowserGeolocation().then(ok=>{ if(ok){ themeUtil.setAutoMode(); void themeUtil.applyAutoTheme() } else { themeUtil.setAutoMode(); void themeUtil.applyAutoTheme(); themeUtil.markGeoAskStatus('declined') } }) }} />
+      <button aria-label="Toggle theme" title="Tema" onClick={handleToggle} className="glass-button p-2 flex items-center justify-center relative" style={{ width:36, height:36 }}>
+        {icon}
+        {autoBadge && (
+          <span className="absolute -bottom-2 right-0 text-2xs bg-black/50 px-1 py-0.5 rounded text-white" style={{ transform: 'translateY(50%)' }}>{autoBadge}</span>
+        )}
+      </button>
+    </>
   )
 }
