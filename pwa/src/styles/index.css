@@ -224,3 +224,17 @@ select { max-width: 100% }
 /* Fallback: apply theme-aware color to any SVG text in the app */
 svg text { fill: var(--text) !important; }
 
+/* Fixes for tooltip visibility and clipping:
+  - Force chart wrappers to allow overflow so HTML tooltips are not clipped by parent containers.
+  - Use fixed positioning and a very high z-index for tooltip wrapper to keep it above transforms/stacking contexts.
+  - Ensure pointer events are enabled so hover/interaction works correctly.
+  These rules use !important because Recharts injects inline styles and some parents may apply overflow:hidden. */
+.recharts-wrapper { overflow: visible !important; }
+.recharts-wrapper .recharts-graphical { overflow: visible !important; }
+.recharts-tooltip-wrapper { position: fixed !important; z-index: 99999 !important; pointer-events: auto !important; transform: none !important; }
+.recharts-tooltip-wrapper * { pointer-events: auto !important; }
+
+/* Some chart containers add transform which creates new stacking contexts; make sure tooltips float above them */
+.recharts-wrapper, .card, .glass-card { isolation: isolate; }
+
+
