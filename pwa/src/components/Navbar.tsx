@@ -1,6 +1,7 @@
 import React from 'react'
 import { motion } from 'framer-motion'
 import { Home, Calendar, DollarSign, Hammer, Sun, Building } from 'lucide-react'
+import ThemeToggle from './ThemeToggle'
 import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
 import { showToast } from '../services/toast'
 
@@ -95,7 +96,13 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
     <header>
       <div className="glass-card mb-4 p-4 flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-3">
-          <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.45 }} className="w-10 h-10 sm:w-12 sm:h-12 bg-gradient-to-br from-yellow-400 to-orange-500 rounded-xl flex items-center justify-center shadow-lg">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            transition={{ duration: 0.45 }}
+            className="w-10 h-10 sm:w-12 sm:h-12 rounded-xl flex items-center justify-center shadow-lg"
+            style={{ background: 'linear-gradient(90deg, var(--accent-2), var(--accent-1))' }}
+          >
             <Sun className="w-5 h-5 sm:w-6 sm:h-6 text-white" />
           </motion.div>
           <div>
@@ -105,7 +112,7 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Botones de import/export removidos - ahora usa Supabase directamente */}
+          <ThemeToggle />
         </div>
       </div>
 
