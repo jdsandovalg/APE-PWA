@@ -205,3 +205,22 @@ select { max-width: 100% }
 .ap-toast-success { background: linear-gradient(90deg,#10b981,#059669); }
 .ap-toast-error { background: linear-gradient(90deg,#ef4444,#dc2626); }
 
+
+/* Recharts: global theme-aware overrides
+  Ensure all chart SVG text and tooltip HTML use theme variables so
+  charts automatically contrast correctly in light/dark/auto modes.
+  Using `!important` because Recharts often renders inline attributes. */
+.recharts-wrapper text { fill: var(--text) !important; }
+.recharts-wrapper .recharts-text { fill: var(--text) !important; }
+.recharts-wrapper .recharts-label, .recharts-label { fill: var(--text) !important; }
+.recharts-cartesian-axis-tick-value { fill: var(--muted) !important; }
+.recharts-wrapper .recharts-legend-item tspan, .recharts-legend-wrapper text, .recharts-legend-item text { fill: var(--muted) !important; }
+.recharts-wrapper .recharts-reference-line text { fill: var(--muted) !important; }
+
+/* Tooltip (HTML) and tooltip inner content - make sure text matches theme */
+.recharts-tooltip-wrapper, .recharts-tooltip-inner, .recharts-default-tooltip { color: var(--text) !important; }
+.recharts-tooltip-inner { background: var(--surface); border: 1px solid var(--glass-border); box-shadow: 0 8px 30px var(--shadow); border-radius: 8px; }
+
+/* Fallback: apply theme-aware color to any SVG text in the app */
+svg text { fill: var(--text) !important; }
+
