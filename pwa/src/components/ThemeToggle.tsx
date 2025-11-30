@@ -1,24 +1,33 @@
 import React from 'react'
-import { Sun, Moon } from 'lucide-react'
-import { initTheme, getStoredTheme, toggleTheme } from '../utils/theme'
+import { Sun, Moon, Clock } from 'lucide-react'
+import themeUtil, { initTheme, getStoredTheme } from '../utils/theme'
 
 export default function ThemeToggle(){
-  const [theme, setTheme] = React.useState<string>(() => (typeof document !== 'undefined' ? (document.documentElement.getAttribute('data-theme') || (getStoredTheme() || 'dark')) : 'dark'))
+  const [mode, setMode] = React.useState<'light'|'dark'|'auto'>(() => {
+    try {
+      const stored = getStoredTheme() as ('light'|'dark'|'auto'|null)
+      return (stored || 'auto') as any
+    } catch { return 'auto' }
+  })
 
   React.useEffect(()=>{
-    // Ensure theme initialized on mount
     const t = initTheme()
-    setTheme(t)
+    if (t === 'auto' || t === null) setMode('auto')
+    else setMode(t as 'light'|'dark')
   }, [])
 
   function handleToggle(){
-    const next = toggleTheme()
-    setTheme(next)
+    const next = mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light'
+    setMode(next)
+    if (next === 'auto') themeUtil.setAutoMode()
+    else themeUtil.setTheme(next)
   }
+
+  const icon = mode === 'auto' ? <Clock size={16} /> : mode === 'light' ? <Sun size={16} /> : <Moon size={16} />
 
   return (
     <button aria-label="Toggle theme" title="Tema" onClick={handleToggle} className="glass-button p-2 flex items-center justify-center" style={{ width:36, height:36 }}>
-      {theme === 'dark' ? <Sun size={16} className="text-white" /> : <Moon size={16} className="text-gray-700" />}
+      {icon}
     </button>
   )
 }
