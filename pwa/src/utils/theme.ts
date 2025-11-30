@@ -82,6 +82,24 @@ export async function applyAutoTheme(): Promise<'dark' | 'light' | null> {
   }
 }
 
+// Try to request browser geolocation (more accurate). Stores coords on success.
+export function requestBrowserGeolocation(timeout = 10000): Promise<boolean> {
+  return new Promise((resolve) => {
+    try {
+      if (typeof navigator === 'undefined' || !('geolocation' in navigator)) return resolve(false)
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude, ts: Date.now() }
+          try { localStorage.setItem(COORDS_KEY, JSON.stringify(coords)) } catch (e) {}
+          resolve(true)
+        },
+        () => resolve(false),
+        { maximumAge: 0, timeout }
+      )
+    } catch (e) { resolve(false) }
+  })
+}
+
 export function initTheme() {
   const stored = getStoredTheme()
   if (stored === 'dark' || stored === 'light') {

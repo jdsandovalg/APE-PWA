@@ -19,8 +19,21 @@ export default function ThemeToggle(){
   function handleToggle(){
     const next = mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light'
     setMode(next)
-    if (next === 'auto') themeUtil.setAutoMode()
-    else themeUtil.setTheme(next)
+    if (next === 'auto') {
+      themeUtil.setAutoMode()
+      // offer the user a chance to enable precise browser geolocation for better accuracy
+      try {
+        const ask = window.confirm('Modo Auto usa ubicación aproximada por IP. ¿Permitir ubicación más precisa (preguntará al navegador)?')
+        if (ask) {
+          themeUtil.requestBrowserGeolocation().then(ok => {
+            if (ok) {
+              // reapply auto theme using newly stored coords
+              themeUtil.applyAutoTheme()
+            }
+          })
+        }
+      } catch (e) {}
+    } else themeUtil.setTheme(next)
   }
 
   const icon = mode === 'auto' ? <Clock size={16} /> : mode === 'light' ? <Sun size={16} /> : <Moon size={16} />
