@@ -4,6 +4,7 @@ export type Theme = 'dark' | 'light' | 'auto'
 
 const THEME_KEY = 'ape_theme'
 const COORDS_KEY = 'ape_coords'
+const ASKED_KEY = 'ape_geo_asked'
 
 type Coords = { lat: number; lng: number; ts?: number }
 
@@ -65,6 +66,23 @@ async function getCoords(): Promise<Coords | null> {
   }
 
   return null
+}
+
+export function hasStoredCoords(): boolean {
+  try {
+    const raw = localStorage.getItem(COORDS_KEY)
+    if (!raw) return false
+    const parsed = JSON.parse(raw)
+    return !!(parsed && typeof parsed.lat === 'number' && typeof parsed.lng === 'number')
+  } catch (e) { return false }
+}
+
+export function wasAskedForGeolocation(): boolean {
+  try { return localStorage.getItem(ASKED_KEY) === '1' } catch (e) { return false }
+}
+
+export function markAskedForGeolocation() {
+  try { localStorage.setItem(ASKED_KEY, '1') } catch (e) {}
 }
 
 export async function applyAutoTheme(): Promise<'dark' | 'light' | null> {

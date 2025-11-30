@@ -20,19 +20,45 @@ export default function ThemeToggle(){
     const next = mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light'
     setMode(next)
     if (next === 'auto') {
-      themeUtil.setAutoMode()
-      // offer the user a chance to enable precise browser geolocation for better accuracy
-      try {
-        const ask = window.confirm('Modo Auto usa ubicación aproximada por IP. ¿Permitir ubicación más precisa (preguntará al navegador)?')
-        if (ask) {
-          themeUtil.requestBrowserGeolocation().then(ok => {
-            if (ok) {
-              // reapply auto theme using newly stored coords
-              themeUtil.applyAutoTheme()
-            }
-          })
+      // If we already have stored coords, or we already asked before, don't prompt again.
+      if (themeUtil.hasStoredCoords()) {
+        themeUtil.setAutoMode()
+        // re-apply immediately with stored coords
+        void themeUtil.applyAutoTheme()
+      } else if (themeUtil.wasAskedForGeolocation()) {
+        // User already declined/was asked previously — enable auto using Geo-IP fallback without prompting
+        themeUtil.setAutoMode()
+        void themeUtil.applyAutoTheme()
+      } else {
+        // Ask once for permission to get precise browser geolocation; if declined we markAsked to avoid repeating
+        try {
+          const ask = window.confirm('Modo Auto usa ubicación aproximada por IP. ¿Permitir ubicación más precisa (preguntará al navegador)?')
+          if (ask) {
+            themeUtil.requestBrowserGeolocation().then(ok => {
+              if (ok) {
+                // reapply auto theme using newly stored coords
+                void themeUtil.applyAutoTheme()
+                themeUtil.markAskedForGeolocation()
+              } else {
+                // user accepted prompt but geolocation failed/denied — mark as asked
+                themeUtil.markAskedForGeolocation()
+                themeUtil.setAutoMode()
+                void themeUtil.applyAutoTheme()
+              }
+            })
+          } else {
+            // user declined to be asked now; remember choice and use Geo-IP fallback
+            themeUtil.markAskedForGeolocation()
+            themeUtil.setAutoMode()
+            void themeUtil.applyAutoTheme()
+          }
+        } catch (e) {
+          // fallback: enable auto using Geo-IP
+          themeUtil.markAskedForGeolocation()
+          themeUtil.setAutoMode()
+          void themeUtil.applyAutoTheme()
         }
-      } catch (e) {}
+      }
     } else themeUtil.setTheme(next)
   }
 
