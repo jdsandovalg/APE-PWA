@@ -56,8 +56,8 @@ export default function Login({ onSuccess }: LoginProps) {
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen p-4" style={{ background: 'linear-gradient(135deg, var(--bg-1) 0%, var(--bg-2) 50%, var(--bg-1) 100%)', color: 'var(--text)' }}>
-      <div className="glass-card mx-auto p-2 sm:p-8 flex flex-col items-center justify-center" style={{ width: '20rem' }}>
-        <div className="flex items-center justify-center w-full mb-6">
+      <div className="glass-card mx-auto p-0.5 sm:p-2 flex flex-col items-center justify-center" style={{ width: '26rem' }}>
+        <div className="flex items-center justify-center w-full mb-4">
           <div className="relative" style={{ width: '120px', height: '120px' }}>
             <img src="/logo.png" alt="Logo Condominio" className="w-full h-full object-contain" />
           </div>
