@@ -6,7 +6,7 @@
  * @description Esta es la página de entrada a la aplicación. Permite a los usuarios autenticarse
  * usando su número de casa y clave.
  */
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '@/services/supabase';
 import ThemeToggle from '../components/ThemeToggle';
@@ -19,6 +19,11 @@ export default function Login({ onSuccess }: LoginProps) {
   const [identifier, setIdentifier] = useState('');
   const [clave, setClave] = useState('');
   const [loading, setLoading] = useState(false);
+  const [meta, setMeta] = useState<{version?:string, commit?:string}>({});
+
+  useEffect(() => {
+    fetch('/build-meta.json').then(r => r.json()).then(j => setMeta(j)).catch(() => {});
+  }, []);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -91,8 +96,11 @@ export default function Login({ onSuccess }: LoginProps) {
             {loading ? 'Cargando...' : 'Iniciar Sesión'}
           </button>
         </form>
-        <div className="mt-6">
+        <div className="mt-3">
           <ThemeToggle />
+        </div>
+        <div className="mt-2 text-xs text-gray-300 opacity-50 text-center" style={{ fontSize: '10px' }}>
+          {meta.version ? `Versión ${meta.version}` : ''}{meta.commit ? ` — ${meta.commit}` : ''}
         </div>
       </div>
     </div>
