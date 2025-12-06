@@ -1,11 +1,11 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Home, Calendar, DollarSign, Hammer, Sun, Building } from 'lucide-react'
+import { Home, Calendar, DollarSign, Hammer, Sun, Building, LogOut } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
 import { showToast } from '../services/toast'
 
-export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'readings'|'tariffs'|'billing'|'meters'|'companies')=>void }){
+export default function Navbar({ onNavigate, onLogout }: { onNavigate: (v:'dashboard'|'readings'|'tariffs'|'billing'|'meters'|'companies')=>void, onLogout?: () => void }){
   /**
    * Navbar / header
    * ----------------
@@ -113,6 +113,11 @@ export default function Navbar({ onNavigate }: { onNavigate: (v:'dashboard'|'rea
 
         <div className="flex items-center gap-2">
           <ThemeToggle />
+          {onLogout && (
+            <button onClick={onLogout} className="glass-button px-3 py-2 text-sm" title="Cerrar sesión">
+              <LogOut size={16} />
+            </button>
+          )}
         </div>
       </div>
 
