@@ -38,6 +38,8 @@ export interface MeterInfo {
   company_id: string
   company_name?: string
   description?: string
+  kwp?: number
+  installation_date?: string
   deleted_at?: string
   created_at?: string
   updated_at?: string

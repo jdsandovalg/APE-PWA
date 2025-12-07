@@ -4,6 +4,7 @@ import { getAllCompanies, getAllTariffs, getReadings, saveReadings, createPrevio
 import { getAllMeters, getMeterById, createMeter, updateMeter } from '../services/supabaseBasic'
 import MeterModal from './MeterModal'
 import ConfirmModal from './ConfirmModal'
+import SeasonalAnalysis from './SeasonalAnalysis'
 import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
 import { exportPDF } from '../utils/pdfExport'
@@ -39,6 +40,15 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
   const [touchStartY, setTouchStartY] = React.useState<number | null>(null)
   const [pullDistance, setPullDistance] = React.useState<number>(0)
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false)
+  const [refreshKey, setRefreshKey] = React.useState(0)
+
+  // Function to open meter configuration modal for current meter
+  const openCurrentMeterConfig = () => {
+    if (meterInfo && Object.keys(meterInfo).length > 0) {
+      setModalInitialMeter(meterInfo)
+      setShowMeterModal(true)
+    }
+  }
 
   // Load all data from Supabase on mount
   React.useEffect(() => {
@@ -377,7 +387,10 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
           <div className="flex items-center justify-between w-full">
             <div className="pr-4">
               <h3 className="text-xs text-gray-300">Medidor / Información</h3>
-              <div className="mt-2 text-xs text-gray-200">Contador: <strong>{meterInfo.contador}</strong> · Correlativo: <strong>{meterInfo.correlativo}</strong></div>
+              <div className="mt-2 text-xs text-gray-200">
+                Contador: <strong>{meterInfo.contador}</strong> · Correlativo: <strong>{meterInfo.correlativo}</strong>
+                {meterInfo.kwp && <span> · Potencia: <strong>{meterInfo.kwp} kWp</strong></span>}
+              </div>
             </div>
               <div className="ml-4 flex flex-col gap-2 items-end">
               <button className="glass-button p-2" title="Gestionar medidores" aria-label="Gestionar medidores" onClick={()=> onNavigate('meters')}><Settings size={14} /></button>
@@ -522,9 +535,25 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
             <ResponsiveContainer>
               <LineChart data={chartRows} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="date" tick={{ fill: 'var(--text)', fontSize: 9 }} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fill: 'var(--text)', fontSize: 9 }}
+                  tickFormatter={(value) => {
+                    const date = new Date(value)
+                    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+                    const month = monthNames[date.getMonth()]
+                    const year = date.getFullYear().toString().slice(-2)
+                    return `${month}/${year}`
+                  }}
+                />
                 <YAxis tick={{ fill: 'var(--text)', fontSize: 9 }} />
-                <Tooltip formatter={(value: any) => `${value} kWh`} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} />
+                <Tooltip 
+                  labelFormatter={(label) => `Fecha: ${label}`}
+                  formatter={(value: any) => [`${value} kWh`, '']} 
+                  itemStyle={{ color: 'var(--text)' }} 
+                  contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} 
+                  wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} 
+                />
                 <Legend wrapperStyle={{ color: 'var(--text)' }} />
                 <Line type="monotone" dataKey="net" name="Neto (kWh)" stroke="#38bdf8" strokeWidth={3} dot={false} isAnimationActive={false} />
                 <Line type="monotone" dataKey="production" name="Producción" stroke="#34d399" strokeWidth={2.5} dot={false} isAnimationActive={false} />
@@ -544,7 +573,17 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
             <ResponsiveContainer>
               <LineChart data={chartRowsAvg || []} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="date" tick={{ fill: 'var(--text)', fontSize: 9 }} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fill: 'var(--text)', fontSize: 9 }}
+                  tickFormatter={(value) => {
+                    const date = new Date(value)
+                    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+                    const month = monthNames[date.getMonth()]
+                    const year = date.getFullYear().toString().slice(-2)
+                    return `${month}/${year}`
+                  }}
+                />
                 <YAxis tick={{ fill: 'var(--text)', fontSize: 9 }} />
                 <Tooltip formatter={(value: any, name: any, props: any) => {
                   if (name === 'avg') return [`${Number(value).toFixed(2)} kWh/d`, 'Promedio']
@@ -569,7 +608,17 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
             <ResponsiveContainer>
               <LineChart data={chartRowsAvgProd || []} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="date" tick={{ fill: 'var(--text)', fontSize: 8 }} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fill: 'var(--text)', fontSize: 8 }}
+                  tickFormatter={(value) => {
+                    const date = new Date(value)
+                    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+                    const month = monthNames[date.getMonth()]
+                    const year = date.getFullYear().toString().slice(-2)
+                    return `${month}/${year}`
+                  }}
+                />
                 <YAxis tick={{ fill: 'var(--text)', fontSize: 8 }} />
                 <Tooltip formatter={(value: any, name: any) => {
                   if (name === 'avg') return [`${Number(value).toFixed(2)} kWh/d`, 'Promedio']
@@ -594,9 +643,25 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
             <ResponsiveContainer>
               <AreaChart data={cumulativeRows} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
-                <XAxis dataKey="date" tick={{ fill: 'var(--text)', fontSize: 8 }} />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fill: 'var(--text)', fontSize: 8 }}
+                  tickFormatter={(value) => {
+                    const date = new Date(value)
+                    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+                    const month = monthNames[date.getMonth()]
+                    const year = date.getFullYear().toString().slice(-2)
+                    return `${month}/${year}`
+                  }}
+                />
                 <YAxis tick={{ fill: 'var(--text)', fontSize: 8 }} />
-                <Tooltip formatter={(value: any) => `${value} kWh`} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} />
+                <Tooltip 
+                  labelFormatter={(label) => `Fecha: ${label}`}
+                  formatter={(value: any) => [`${value} kWh`, '']} 
+                  itemStyle={{ color: 'var(--text)' }} 
+                  contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} 
+                  wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} 
+                />
                 <Legend wrapperStyle={{ color: 'var(--text)' }} />
                 <Area type="monotone" dataKey="positive" name="Saldo positivo (kWh)" stroke="#34d399" fill="#134e4a" fillOpacity={0.6} />
                 <Area type="monotone" dataKey="negative" name="Saldo negativo (abs kWh)" stroke="#fb7185" fill="#4c0519" fillOpacity={0.6} />
@@ -605,8 +670,12 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
           </div>
         </div>
             {/* Facturación table removed from live UI; generated only at PDF export */}
+
+      <SeasonalAnalysis key={`${refreshKey}-${currentMeterId}`} meterId={currentMeterId} onConfigureMeter={openCurrentMeterConfig} />
+
           {showMeterModal && (
             <MeterModal
+              key={modalInitialMeter?.id || 'new'}
               open={showMeterModal}
               initial={modalInitialMeter || meterInfo}
               readOnlyPK={!!(modalInitialMeter && modalInitialMeter.contador)}
@@ -639,6 +708,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
 
                   setShowMeterModal(false)
                   setModalInitialMeter(null)
+                  setRefreshKey(prev => prev + 1) // Force SeasonalAnalysis to reload
                   await loadAllData() // Reload all data
                 } catch (error) {
                   console.error('Error saving meter:', error)

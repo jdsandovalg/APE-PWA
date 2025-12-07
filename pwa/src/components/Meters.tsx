@@ -108,7 +108,9 @@ export default function Meters({ onNavigate }: { onNavigate: (view: string) => v
           nit: meterData.nit,
           distribuidora: meterData.distribuidora,
           tipo_servicio: meterData.tipo_servicio,
-          sistema: meterData.sistema
+          sistema: meterData.sistema,
+          kwp: meterData.kwp,
+          installation_date: meterData.installation_date
         })
         showToast('Medidor actualizado', 'success')
       } else {
@@ -120,7 +122,9 @@ export default function Meters({ onNavigate }: { onNavigate: (view: string) => v
           nit: meterData.nit,
           distribuidora: meterData.distribuidora,
           tipo_servicio: meterData.tipo_servicio,
-          sistema: meterData.sistema
+          sistema: meterData.sistema,
+          kwp: meterData.kwp,
+          installation_date: meterData.installation_date
         })
         showToast('Medidor creado', 'success')
       }
@@ -211,13 +215,16 @@ export default function Meters({ onNavigate }: { onNavigate: (view: string) => v
         <MeterModal
           open={showModal}
           initial={editingMeter ? {
+            id: editingMeter.id,
             contador: editingMeter.contador,
             correlativo: editingMeter.correlativo,
             propietaria: editingMeter.propietaria,
             nit: editingMeter.nit,
             distribuidora: editingMeter.distribuidora,
             tipo_servicio: editingMeter.tipo_servicio,
-            sistema: editingMeter.sistema
+            sistema: editingMeter.sistema,
+            kwp: editingMeter.kwp,
+            installation_date: editingMeter.installation_date
           } : { contador: '', correlativo: '', propietaria: '', nit: '', distribuidora: 'EEGSA', tipo_servicio: '', sistema: '' }}
           readOnlyPK={!!editingMeter}
           onClose={handleModalClose}

@@ -310,6 +310,8 @@ export interface MeterRecord {
   distribuidora: string
   tipo_servicio: string
   sistema: string
+  kwp?: number
+  installation_date?: string
   deleted_at?: string
   created_at?: string
   updated_at?: string
@@ -321,7 +323,7 @@ export async function getAllMeters(): Promise<MeterRecord[]> {
 
   const { data, error } = await supabase
     .from('meters')
-    .select('id, contador, correlativo, propietaria, nit, distribuidora, tipo_servicio, sistema, deleted_at, created_at, updated_at')
+    .select('id, contador, correlativo, propietaria, nit, distribuidora, tipo_servicio, sistema, kwp, installation_date, deleted_at, created_at, updated_at')
     .is('deleted_at', null)
     .order('contador')
 
@@ -340,7 +342,7 @@ export async function getMeterById(id: string): Promise<MeterRecord | null> {
 
   const { data, error } = await supabase
     .from('meters')
-    .select('id, contador, correlativo, propietaria, nit, distribuidora, tipo_servicio, sistema, deleted_at, created_at, updated_at')
+    .select('id, contador, correlativo, propietaria, nit, distribuidora, tipo_servicio, sistema, kwp, installation_date, deleted_at, created_at, updated_at')
     .eq('id', id)
     .is('deleted_at', null)
     .single()

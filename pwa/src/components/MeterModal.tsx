@@ -17,7 +17,9 @@ export default function MeterModal({ open, initial, onClose, onSave, readOnlyPK=
   const [companies, setCompanies] = React.useState<CompanyRecord[]>([])
   const [loading, setLoading] = React.useState(false)
 
-  React.useEffect(()=>{ setForm(initial) }, [initial])
+  React.useEffect(()=>{ 
+    setForm(initial) 
+  }, [initial])
 
   React.useEffect(() => {
     if (open) {
@@ -50,6 +52,21 @@ export default function MeterModal({ open, initial, onClose, onSave, readOnlyPK=
       try{ showToast('Por favor completa Contador y Correlativo', 'error') }catch(e){}
       return
     }
+
+    // Check if this is a solar system and requires installation date
+    const isSolarSystem = form.sistema && (
+      form.sistema.toLowerCase().includes('panel') ||
+      form.sistema.toLowerCase().includes('solar') ||
+      form.sistema.toLowerCase().includes('fotovoltaico') ||
+      form.sistema.toLowerCase().includes('kw') ||
+      form.sistema.toLowerCase().includes('kwp')
+    )
+
+    if (isSolarSystem && !form.installation_date) {
+      try{ showToast('Para sistemas solares, debe configurar la fecha de instalación', 'error') }catch(e){}
+      return
+    }
+
     try{
       // parent is responsible for persisting into meters map / current id
       onSave(form)
@@ -81,12 +98,12 @@ export default function MeterModal({ open, initial, onClose, onSave, readOnlyPK=
             <select className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" value={form.distribuidora} onChange={e=>update('distribuidora', e.target.value)}>
               {companies.length === 0 ? (
                 <>
-                  <option value="EEGSA">EEGSA</option>
-                  <option value="Energuate - Deorsa">Energuate - Deorsa</option>
-                  <option value="Energuate - Deocsa">Energuate - Deocsa</option>
+                  <option key="eegsa" value="EEGSA">EEGSA</option>
+                  <option key="energuate-deorsa" value="Energuate - Deorsa">Energuate - Deorsa</option>
+                  <option key="energuate-deocsa" value="Energuate - Deocsa">Energuate - Deocsa</option>
                 </>
               ) : (
-                companies.map(c => (<option key={c.id} value={c.id}>{c.id} — {c.name}</option>))
+                companies.map((c, index) => (<option key={`company-${c.id}-${index}`} value={c.id}>{c.id} — {c.name}</option>))
               )}
             </select>
           </label>
@@ -108,6 +125,18 @@ export default function MeterModal({ open, initial, onClose, onSave, readOnlyPK=
           </label>
           <label className="text-xs text-white">Sistema (breve descripción)
             <input className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" placeholder="Sistema" value={form.sistema} onChange={e=>update('sistema', e.target.value)} />
+          </label>
+          <label className="text-xs text-white">Potencia pico (kWp)
+            <input type="number" step="0.01" className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" placeholder="3.75" value={form.kwp || ''} onChange={e=>update('kwp', parseFloat(e.target.value) || undefined)} />
+          </label>
+          <label className="text-xs text-white">Fecha instalación sistema solar
+            <input type="date" className="w-full bg-white/5 text-white placeholder-gray-400 border border-white/10 rounded px-1 py-1 mt-1 text-sm" value={form.installation_date || ''} onChange={e=>update('installation_date', e.target.value)} />
+            <div className="text-xs text-gray-400 mt-1">
+              {form.sistema && (form.sistema.toLowerCase().includes('panel') || form.sistema.toLowerCase().includes('solar') || form.sistema.toLowerCase().includes('fotovoltaico') || form.sistema.toLowerCase().includes('kw') || form.sistema.toLowerCase().includes('kwp'))
+                ? 'Requerido para sistemas solares - mejora precisión de análisis estacionales'
+                : 'Opcional - mejora precisión de análisis estacionales para sistemas solares'
+              }
+            </div>
           </label>
         </div>
         <div className="mt-3 flex justify-end gap-2">
