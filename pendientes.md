@@ -151,3 +151,17 @@ Formato recomendado (línea por tarea):
 - **Próximo objetivo**: Corregir fechas de tarifas y re-habilitar exportación PDF
 
 Última actualización: 25/11/2025
+
+## 🔮 FUNCIONALIDADES FUTURAS PLANIFICADAS
+
+### Pantalla de Pronósticos Solares
+- [ ] forecasting-screen: Crear pantalla dedicada para pronósticos solares basada en KWp, lat/lon, fecha instalación y datos históricos
+- [ ] prediction-algorithms: Implementar algoritmos de predicción considerando degradación de paneles (0.5-1% anual), mantenimiento y factores ambientales
+- [ ] weather-api-integration: Integración con APIs meteorológicas (OpenWeatherMap, SolarAnywhere) para pronósticos de radiación solar diarios
+- [ ] roi-calculator: Calculadora de retorno de inversión con proyecciones financieras (ahorros acumulados, payback period, IRR)
+- [ ] forecasting-validation: Sistema de validación cruzada comparando predicciones vs datos históricos reales
+- [ ] degradation-model: Modelo de degradación temporal de paneles solares basado en tecnología y condiciones ambientales
+- [ ] seasonal-adjustments: Ajustes estacionales considerando ángulo solar, nubosidad histórica y patrones climáticos
+- [ ] financial-projections: Proyecciones financieras incluyendo inflación, aumento de tarifas eléctricas y mantenimiento
+- [ ] export-forecasts: Funcionalidad para exportar pronósticos en PDF/Excel con gráficos y tablas detalladas
+- [ ] scenario-comparison: Comparación de escenarios (diferentes KWp, orientaciones, tecnologías de paneles)
