@@ -18,7 +18,7 @@ export default function Readings(){
   const [showAddModal, setShowAddModal] = useState(false)
   const [showConfirmClear, setShowConfirmClear] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
-  const [editingInitial, setEditingInitial] = useState<{date:string, consumption:number, production:number} | null>(null)
+  const [editingInitial, setEditingInitial] = useState<{id?: string|number, date:string, consumption:number, production:number} | null>(null)
 
   useEffect(() => {
     loadInitialData()
@@ -112,6 +112,9 @@ export default function Readings(){
     const merged = [...parsed, ...data]
     setData(merged)
     await saveReadings(currentMeterId, merged)
+    // Reload from DB to ensure we have the generated IDs for the new rows
+    const fresh = await getReadings(currentMeterId)
+    setData(fresh)
     setMessage(`Importadas ${parsed.length} filas desde ${srcName}`)
   }
 
@@ -176,6 +179,9 @@ export default function Readings(){
     setData(ordered)
     if (currentMeterId) {
       await saveReadings(currentMeterId, ordered)
+      // Reload from DB to ensure we have the generated IDs
+      const fresh = await getReadings(currentMeterId)
+      setData(fresh)
     }
     setMessage(`Calculados ${deltas.length} periodos (deltas)`)
   }
@@ -340,7 +346,7 @@ export default function Readings(){
               const avgProd = days>0 ? (Number(d.production||0)/days) : null
               return (
                 <tr key={idx} className="border-b border-gray-700 text-xs">
-                  <td className="py-1">{new Date(r.date).toLocaleDateString()}</td>
+                  <td className="py-1">{new Date(r.date).toLocaleDateString(undefined, { timeZone: 'UTC' })}</td>
                   <td className="py-1 text-right">{Number(r.consumption || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
                   <td className="py-1 text-right">{Number(d.consumption || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
                   <td className="py-1 text-right">{Number(r.production || 0).toLocaleString(undefined, {maximumFractionDigits:0})}</td>
@@ -357,9 +363,9 @@ export default function Readings(){
                     <div className="text-[10px] text-gray-400">{Number(d.production||0).toLocaleString()}</div>
                   </td>
                   <td className="py-1 text-center">
-                    <button className="glass-button px-2 py-1 text-xs inline-flex items-center gap-1" title="Editar lectura" aria-label={`Editar lectura ${new Date(r.date).toLocaleDateString()}`} onClick={()=>{
+                    <button className="glass-button px-2 py-1 text-xs inline-flex items-center gap-1" title="Editar lectura" aria-label={`Editar lectura ${new Date(r.date).toLocaleDateString(undefined, { timeZone: 'UTC' })}`} onClick={()=>{
                       setEditingIndex(idx)
-                      setEditingInitial({ date: r.date, consumption: Number(r.consumption||0), production: Number(r.production||0) })
+                      setEditingInitial({ id: r.id, date: r.date, consumption: Number(r.consumption||0), production: Number(r.production||0) })
                       setShowAddModal(true)
                     }}><Edit2 size={14} /></button>
                   </td>
