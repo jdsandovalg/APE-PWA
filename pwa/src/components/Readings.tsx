@@ -279,6 +279,7 @@ export default function Readings(){
         }}
         initial={editingInitial}
         editingIndex={editingIndex}
+        currentMeterId={currentMeterId}
       />
       <ConfirmModal
         open={showConfirmClear}

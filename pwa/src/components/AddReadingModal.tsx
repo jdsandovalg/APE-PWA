@@ -7,7 +7,8 @@ import { X, Save } from 'lucide-react'
 type Props = {
   open: boolean,
   onClose: ()=>void,
-  onSaved: ()=>void
+  onSaved: ()=>void,
+  currentMeterId?: string
 }
 
 type InitialReading = { date: string, consumption: number | string, production: number | string }
@@ -19,12 +20,20 @@ type FormState = {
   days: number
 }
 
-export default function AddReadingModal({ open, onClose, onSaved, initial, editingIndex }: Props & { initial?: InitialReading | null, editingIndex?: number | null }){
+export default function AddReadingModal({ open, onClose, onSaved, initial, editingIndex, currentMeterId }: Props & { initial?: InitialReading | null, editingIndex?: number | null }){
   const [form, setForm] = React.useState<FormState>({ date: new Date().toISOString().split('T')[0], consumption: '', production: '', days: 0 })
   const [readings, setReadings] = React.useState<ReadingRecord[]>([])
   const [meters, setMeters] = React.useState<MeterRecord[]>([])
   const [tariffs, setTariffs] = React.useState<any[]>([])
   const [loading, setLoading] = React.useState(false)
+
+  const activeMeter = React.useMemo(() => {
+    if (meters.length === 0) return null
+    if (currentMeterId) {
+      return meters.find(m => m.contador === currentMeterId || m.id === currentMeterId) || meters[0]
+    }
+    return meters[0]
+  }, [meters, currentMeterId])
 
   React.useEffect(() => {
     if (open) {
@@ -109,8 +118,9 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
         return
       }
       
-      // Use first meter as current meter (or we could add meter selection)
-      const currentMeter = meters[0]
+      // Use currentMeterId prop to find the meter, otherwise fallback to first
+      const currentMeter = activeMeter || meters[0]
+
       if (!currentMeter.contador || !currentMeter.correlativo) {
         showToast('Información del medidor incompleta (contador o correlativo faltante). Revise la sección Contadores y complete contador + correlativo.', 'error')
         return
@@ -153,7 +163,7 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
       consumption, 
       production,
       // Use contador as the public meter identifier so reads match getReadings(currentMeterId)
-      meter_id: meters[0]?.contador || '',
+      meter_id: currentMeter.contador || '',
       credit: 0 // Default credit value
     }
     
@@ -199,6 +209,11 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="glass-card max-w-md sm:max-w-lg w-full p-4 z-10 text-white max-h-[80vh] overflow-y-auto">
         <h3 className="text-base font-semibold mb-2">Agregar lectura manual</h3>
+        {activeMeter && (
+          <div className="mb-3 text-xs text-gray-300">
+            Agregando lectura para el Contador: <strong className="text-white">{activeMeter.contador}</strong>
+          </div>
+        )}
         <div className="grid grid-cols-1 gap-2">
           <label className="text-xs text-white">Fecha
             <input type="date" className="w-full bg-white/5 text-white border border-white/10 rounded px-1 py-1 mt-1 text-sm" value={form.date} onChange={e=>handleDateChange(e.target.value)} />
