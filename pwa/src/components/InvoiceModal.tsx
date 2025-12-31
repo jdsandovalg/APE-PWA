@@ -54,14 +54,15 @@ export default function InvoiceModal({ open, onClose, row }: Props){
   if (!open || !row) return null
 
   const invoice = row.invoice || {}
-  const rates = invoice?.tariff || {}
+  // The tariff object can be at `row.tariff` (from Dashboard) or `row.invoice.tariff` (from Billing RPC)
+  const rates = row.tariff?.rates || invoice?.tariff?.rates || invoice?.tariff || {}
   const lines = [
-    { concept: 'Cargo fijo', rate: rates.fixed_charge_q != null ? `${Number(rates.fixed_charge_q).toFixed(4)} Q` : '-', amount: invoice.fixed_charge_Q || 0 },
-    { concept: 'Energía neta', rate: rates.energy_q_per_kwh != null ? `${Number(rates.energy_q_per_kwh).toFixed(6)} Q/kWh` : '-', amount: invoice.energy_charge_Q || 0 },
-    { concept: 'Distribución', rate: rates.distribution_q_per_kwh != null ? `${Number(rates.distribution_q_per_kwh).toFixed(6)} Q/kWh` : '-', amount: invoice.distribution_charge_Q || 0 },
-    { concept: 'Potencia', rate: rates.potencia_q_per_kwh != null ? `${Number(rates.potencia_q_per_kwh).toFixed(6)} Q/kW` : '-', amount: invoice.potencia_charge_Q || 0 },
+    { concept: 'Cargo fijo', rate: (rates.fixed_charge_q ?? rates.fixedCharge_Q) != null ? `${Number(rates.fixed_charge_q ?? rates.fixedCharge_Q).toFixed(4)} Q` : '-', amount: invoice.fixed_charge_Q || 0 },
+    { concept: 'Energía neta', rate: (rates.energy_q_per_kwh ?? rates.energy_Q_per_kWh) != null ? `${Number(rates.energy_q_per_kwh ?? rates.energy_Q_per_kWh).toFixed(6)} Q/kWh` : '-', amount: invoice.energy_charge_Q || 0 },
+    { concept: 'Distribución', rate: (rates.distribution_q_per_kwh ?? rates.distribution_Q_per_kWh) != null ? `${Number(rates.distribution_q_per_kwh ?? rates.distribution_Q_per_kWh).toFixed(6)} Q/kWh` : '-', amount: invoice.distribution_charge_Q || 0 },
+    { concept: 'Potencia', rate: (rates.potencia_q_per_kwh ?? rates.potencia_Q_per_kWh) != null ? `${Number(rates.potencia_q_per_kwh ?? rates.potencia_Q_per_kWh).toFixed(6)} Q/kW` : '-', amount: invoice.potencia_charge_Q || 0 },
     { concept: 'Contrib. A.P.', rate: '-', amount: invoice.contrib_amount_Q || 0 },
-    { concept: 'IVA', rate: rates.iva_percent != null ? `${Number(rates.iva_percent)}%` : '12%', amount: invoice.iva_amount_Q || 0 }
+    { concept: 'IVA', rate: (rates.iva_percent) != null ? `${Number(rates.iva_percent)}%` : '12%', amount: invoice.iva_amount_Q || 0 }
   ]
 
   const total = Number(invoice.total_due_Q || 0)
@@ -111,7 +112,7 @@ export default function InvoiceModal({ open, onClose, row }: Props){
           <div>
             <h3 id="invoice-title" className="text-base font-semibold">Detalle de Factura</h3>
             <div className="text-xs text-gray-300">Fecha: {row.date || ''} — Consumo: {row.consumption_kWh ?? '-'} kWh</div>
-            <div className="text-xs text-gray-300">Tarifa: {invoice?.tariff?.id || 'N/A'}</div>
+            <div className="text-xs text-gray-300">Tarifa: {invoice?.tariff?.id || row.tariffId || 'N/A'}</div>
           </div>
           <button ref={closeBtnRef} className="glass-button p-2" title="Cerrar" onClick={onClose}><X size={14} /></button>
         </div>

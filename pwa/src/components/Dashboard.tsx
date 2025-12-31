@@ -4,12 +4,13 @@ import { getAllCompanies, getAllTariffs, getReadings, saveReadings, createPrevio
 import { getAllMeters, getMeterById, createMeter, updateMeter } from '../services/supabaseBasic'
 import MeterModal from './MeterModal'
 import ConfirmModal from './ConfirmModal'
+import InvoiceModal from './InvoiceModal'
 import SeasonalAnalysis from './SeasonalAnalysis'
 import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
 import { exportPDF } from '../utils/pdfExport'
 import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Gauge, Settings, X, Plus, Building } from 'lucide-react'
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area, LabelList, BarChart, Bar } from 'recharts'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area, LabelList } from 'recharts'
 
 function currency(v:number){ return `Q ${v.toFixed(2)}` }
 
@@ -42,6 +43,8 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false)
   const [refreshKey, setRefreshKey] = React.useState(0)
   const [localeInfo, setLocaleInfo] = React.useState('')
+  const [showInvoiceModal, setShowInvoiceModal] = React.useState(false)
+  const [selectedInvoiceRow, setSelectedInvoiceRow] = React.useState<any>(null)
 
   // Function to open meter configuration modal for current meter
   const openCurrentMeterConfig = () => {
@@ -382,16 +385,27 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
 
       return deltas.map(delta => {
         let amount = 0
+        let invoice = null
+        let tariffForInvoice = null
+        let tariffId = null
         try {
           const tariff = findActiveTariffForDate(delta.date, companyParam, segmentParam)
           if (tariff) {
             const inv = computeInvoiceForPeriod(Number(delta.consumption||0), Number(delta.production||0), tariff, { forUnit: 'period', date: delta.date })
             amount = inv.total_due_Q || 0
+            invoice = inv
+            tariffForInvoice = tariff
+            tariffId = tariff.header?.id
           }
         } catch (e) {}
         return {
           date: delta.date.split('T')[0],
-          amount: amount
+          amount: amount,
+          invoice,
+          tariff: tariffForInvoice,
+          consumption_kWh: delta.consumption,
+          production_kWh: delta.production,
+          tariffId
         }
       })
     } catch (e) { return [] }
@@ -721,7 +735,17 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
           </h3>
           <div style={{ width: '100%', height: 220 }}>
             <ResponsiveContainer>
-              <LineChart data={billingChartRows} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+              <LineChart 
+                data={billingChartRows} 
+                margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
+                onClick={(e) => {
+                  if (e && e.activePayload && e.activePayload[0]) {
+                    setSelectedInvoiceRow(e.activePayload[0].payload)
+                    setShowInvoiceModal(true)
+                  }
+                }}
+                style={{ cursor: 'pointer' }}
+              >
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis 
                   dataKey="date" 
@@ -733,7 +757,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                   }}
                 />
                 <YAxis tick={{ fill: 'var(--text)', fontSize: 9 }} tickFormatter={(val) => Number(val).toFixed(2)} />
-                <Tooltip formatter={(value: any) => [`Q ${Number(value).toFixed(2)}`, 'Total']} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} />
+                <Tooltip formatter={(value: any) => [`Q ${Number(value).toFixed(2)}`, 'Total (Click para detalle)']} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} />
                 <Legend wrapperStyle={{ color: 'var(--text)' }} />
                 <Line type="monotone" dataKey="amount" name="Total Factura (Q)" stroke="#4ade80" strokeWidth={2.5} dot={{ r: 3 }} isAnimationActive={false}>
                   <LabelList dataKey="amount" position="top" style={{ fontSize: 8, fill: 'var(--text)' }} formatter={(v:any)=> `Q${Number(v).toFixed(2)}`} />
@@ -742,6 +766,9 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
             </ResponsiveContainer>
           </div>
         </div>
+
+      {/* Invoice Detail Modal from Chart */}
+      <InvoiceModal open={showInvoiceModal} onClose={()=>setShowInvoiceModal(false)} row={selectedInvoiceRow} />
 
       <SeasonalAnalysis key={`${refreshKey}-${currentMeterId}`} meterId={currentMeterId} onConfigureMeter={openCurrentMeterConfig} />
 
