@@ -109,8 +109,8 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
 
     readingsWithDeltas.forEach(reading => {
       const date = new Date(reading.date)
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
-      const month = date.getMonth() + 1 // 1-12
+      const monthKey = `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}`
+      const month = date.getUTCMonth() + 1 // 1-12
 
       // Determine season: Nov-Apr = Summer (1), May-Oct = Winter (0)
       const isSummer = month >= 11 || month <= 4

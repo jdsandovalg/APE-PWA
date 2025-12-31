@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useMemo } from 'react'
 import { getReadings, saveReadings } from '../services/supabasePure'
 import { getAllMeters, getMeterByContador } from '../services/supabaseBasic'
 import { computeDeltas } from '../services/supabasePure'
@@ -181,51 +181,56 @@ export default function Readings(){
   }
 
   // prepare deltas map (date ISO -> delta row)
-  const deltas = computeDeltas(data)
-  const deltaMap = new Map<string, Reading>()
-  deltas.forEach(d=> deltaMap.set(new Date(d.date).toISOString(), d))
-  // build cumulative saldo map (running sum of (production - consumption)) ordered by date
-  const cumulativeMap = new Map<string, number>()
-  // prepare reference map container (filled below)
-  const refMap = new Map<string, number>()
-  try{
-    const sorted = [...deltas].map(d=>({ ...d, date: new Date(d.date).toISOString() }))
-    sorted.sort((a,b)=> new Date(a.date).getTime() - new Date(b.date).getTime())
-    let running = 0
-    for (const d of sorted){
-      running += (Number(d.production) || 0) - (Number(d.consumption) || 0)
-      cumulativeMap.set(new Date(d.date).toISOString(), running)
-    }
-    // assign simple reference numbers for delta rows (B1: per-row reference)
+  const { deltaMap, cumulativeMap, refMap, daysMap } = useMemo(() => {
+    const deltas = computeDeltas(data)
+    const deltaMap = new Map<string, Reading>()
+    deltas.forEach(d=> deltaMap.set(new Date(d.date).toISOString(), d))
+    // build cumulative saldo map (running sum of (production - consumption)) ordered by date
+    const cumulativeMap = new Map<string, number>()
+    // prepare reference map container (filled below)
+    const refMap = new Map<string, number>()
+    const daysMap = new Map<string, number>()
+
     try{
-      let refCount = 0
-      const ordered = [...deltas].map(d=>({ ...d, date: new Date(d.date).toISOString() }))
-      ordered.sort((a,b)=> new Date(a.date).getTime() - new Date(b.date).getTime())
-      for (const d of ordered){
-        const iso = new Date(d.date).toISOString()
-        const hasRaw = (Number(d.consumption)||0) !== 0 || (Number(d.production)||0) !== 0
-        if (hasRaw){ refCount += 1; refMap.set(iso, refCount) }
+      const sorted = [...deltas].map(d=>({ ...d, date: new Date(d.date).toISOString() }))
+      sorted.sort((a,b)=> new Date(a.date).getTime() - new Date(b.date).getTime())
+      let running = 0
+      for (const d of sorted){
+        running += (Number(d.production) || 0) - (Number(d.consumption) || 0)
+        cumulativeMap.set(new Date(d.date).toISOString(), running)
+      }
+      // assign simple reference numbers for delta rows (B1: per-row reference)
+      try{
+        let refCount = 0
+        const ordered = [...deltas].map(d=>({ ...d, date: new Date(d.date).toISOString() }))
+        ordered.sort((a,b)=> new Date(a.date).getTime() - new Date(b.date).getTime())
+        for (const d of ordered){
+          const iso = new Date(d.date).toISOString()
+          const hasRaw = (Number(d.consumption)||0) !== 0 || (Number(d.production)||0) !== 0
+          if (hasRaw){ refCount += 1; refMap.set(iso, refCount) }
+        }
+      }catch(e){ /* ignore */ }
+    }catch(e){ /* ignore */ }
+
+    // build days-of-service map: difference in days between each reading and the previous one
+    try{
+      const sortedDates = [...data].map(r=>new Date(r.date)).sort((a,b)=> a.getTime() - b.getTime())
+      const MS_PER_DAY = 1000 * 60 * 60 * 24
+      for (let i=0;i<sortedDates.length;i++){
+        const cur = sortedDates[i]
+        if (i===0){
+          // first (oldest) — no previous period
+          daysMap.set(cur.toISOString(), 0)
+        }else{
+          const prev = sortedDates[i-1]
+          const diff = Math.floor((cur.getTime() - prev.getTime()) / MS_PER_DAY)
+          daysMap.set(cur.toISOString(), diff)
+        }
       }
     }catch(e){ /* ignore */ }
-  }catch(e){ /* ignore */ }
 
-  // build days-of-service map: difference in days between each reading and the previous one
-  const daysMap = new Map<string, number>()
-  try{
-    const sortedDates = [...data].map(r=>new Date(r.date)).sort((a,b)=> a.getTime() - b.getTime())
-    const MS_PER_DAY = 1000 * 60 * 60 * 24
-    for (let i=0;i<sortedDates.length;i++){
-      const cur = sortedDates[i]
-      if (i===0){
-        // first (oldest) — no previous period
-        daysMap.set(cur.toISOString(), 0)
-      }else{
-        const prev = sortedDates[i-1]
-        const diff = Math.floor((cur.getTime() - prev.getTime()) / MS_PER_DAY)
-        daysMap.set(cur.toISOString(), diff)
-      }
-    }
-  }catch(e){ /* ignore */ }
+    return { deltaMap, cumulativeMap, refMap, daysMap }
+  }, [data])
 
   if (loading) {
     return (

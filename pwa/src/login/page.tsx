@@ -20,9 +20,15 @@ export default function Login({ onSuccess }: LoginProps) {
   const [clave, setClave] = useState('');
   const [loading, setLoading] = useState(false);
   const [meta, setMeta] = useState<{version?:string, commit?:string}>({});
+  const [localeInfo, setLocaleInfo] = useState('');
 
   useEffect(() => {
     fetch('/build-meta.json').then(r => r.json()).then(j => setMeta(j)).catch(() => {});
+    try {
+      const loc = Intl.DateTimeFormat().resolvedOptions().locale;
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      setLocaleInfo(`${loc} · ${tz}`);
+    } catch (e) {}
   }, []);
 
   const handleLogin = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -101,6 +107,7 @@ export default function Login({ onSuccess }: LoginProps) {
         </div>
         <div className="mt-2 text-xs text-gray-300 opacity-50 text-center" style={{ fontSize: '10px' }}>
           {meta.version ? `Versión ${meta.version}` : ''}{meta.commit ? ` — ${meta.commit}` : ''}
+          {localeInfo && <div>{localeInfo}</div>}
         </div>
       </div>
     </div>

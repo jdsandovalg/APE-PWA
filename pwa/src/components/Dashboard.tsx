@@ -41,6 +41,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
   const [pullDistance, setPullDistance] = React.useState<number>(0)
   const [isRefreshing, setIsRefreshing] = React.useState<boolean>(false)
   const [refreshKey, setRefreshKey] = React.useState(0)
+  const [localeInfo, setLocaleInfo] = React.useState('')
 
   // Function to open meter configuration modal for current meter
   const openCurrentMeterConfig = () => {
@@ -53,6 +54,12 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
   // Load all data from Supabase on mount
   React.useEffect(() => {
     loadAllData()
+
+    try {
+      const loc = Intl.DateTimeFormat().resolvedOptions().locale
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
+      setLocaleInfo(`${loc} · ${tz}`)
+    } catch (e) {}
 
     const handler = (e: Event) => {
       try {
@@ -86,8 +93,6 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                 console.warn('Error fetching meter/readings on meterChange:', err)
               }
             }
-            // Also refresh all other data in background to keep everything in sync
-            try { await loadAllData() } catch(e){ /* ignore */ }
           } catch (err) { console.warn('Async handler error for ape:meterChange', err) }
         })()
 
@@ -141,41 +146,41 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
       setLoading(true)
       console.log('🔄 Loading all dashboard data from Supabase...')
 
-      const [metersData, companiesData, tariffsData, readingsData] = await Promise.all([
+      const [metersData, companiesData, tariffsData] = await Promise.all([
         getAllMeters(),
         getAllCompanies(),
-        getAllTariffs(),
-        getReadings()
+        getAllTariffs()
       ])
 
       setMeters(metersData)
       setCompanies(companiesData)
       setTariffs(tariffsData)
-      setReadings(readingsData)
 
       // Set current meter (use persisted selection if available, otherwise first)
+      let currentMeter = null
       if (metersData.length > 0) {
         const persisted = (() => { try { return localStorage.getItem('ape_currentMeterId') } catch (e) { return null } })()
         // allow persisted to be either meter.id (uuid) or meter.contador (human readable)
-        let currentMeter = null
         if (persisted) {
           currentMeter = metersData.find(m => m.id === persisted) || metersData.find(m => m.contador === persisted) || null
         }
         if (!currentMeter) currentMeter = metersData[0]
         setCurrentMeterId(currentMeter.id)
         setMeterInfo(currentMeter)
-        // Filter readings to current meter
-        const filteredReadings = readingsData.filter(r => r.meter_id === currentMeter.contador || r.meter_id === currentMeter.id)
-        setReadings(filteredReadings)
+        
+        // Fetch readings specifically for the current meter to ensure we get all relevant data
+        const meterReadings = await getReadings(currentMeter.contador || currentMeter.id)
+        setReadings(meterReadings)
+
         console.log('📊 Dashboard data loaded from Supabase:', {
           meters: metersData.length,
           companies: companiesData.length,
           tariffs: tariffsData.length,
-          readings: readingsData.length,
-          filteredReadings: filteredReadings.length,
+          readings: meterReadings.length,
           currentMeterId: currentMeter.id,
-          readingsMeterIds: readingsData.map(r => r.meter_id)
         })
+      } else {
+        setReadings([])
       }
     } catch (error) {
       console.error('❌ Error loading dashboard data:', error)
@@ -189,7 +194,12 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
   function computeDeltas(readings: ReadingRecord[]) {
     if (!readings || readings.length < 2) return []
 
-    const sorted = [...readings].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    const sorted = [...readings].sort((a, b) => {
+      const timeA = new Date(a.date).getTime()
+      const timeB = new Date(b.date).getTime()
+      if (timeA !== timeB) return timeA - timeB
+      return Number(a.consumption || 0) - Number(b.consumption || 0)
+    })
     const deltas = []
 
     for (let i = 1; i < sorted.length; i++) {
@@ -213,7 +223,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
 
   function findActiveTariffForDate(date: string, company?: string, segment?: string) {
     const targetDate = new Date(date)
-    const activeTariffs = tariffs.filter(tariff => {
+    const activeTariffs = tariffs.filter((tariff: any) => {
       // Support multiple tariff shapes: either `tariff.header.period.from/to` or `tariff.period_from` / `tariff.period_to`
       const fromStr = tariff?.header?.period?.from || tariff?.period_from || tariff?.header?.period_from || tariff?.header?.from
       const toStr = tariff?.header?.period?.to || tariff?.period_to || tariff?.header?.period_to || tariff?.header?.to
@@ -235,125 +245,131 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
   }
 
   // Calculate monthly consumption and production
-  const thisMonth = new Date().getMonth()
-  const thisYear = new Date().getFullYear()
-  let consumptionMonth = 0
-  let productionMonth = 0
-  let creditAccum = 0
+  const { consumptionMonth, productionMonth, estimatedBill, lastDelta, latestSaldo, accumulatedSaldo, readingsMissingTariff, activeTariff } = React.useMemo(() => {
+    const thisMonth = new Date().getMonth()
+    const thisYear = new Date().getFullYear()
+    let consumptionMonth = 0
+    let productionMonth = 0
+    let creditAccum = 0
 
-  readings.forEach(r => {
-    const d = new Date(r.date)
-    if (d.getMonth() === thisMonth && d.getFullYear() === thisYear) {
-      consumptionMonth += Number(r.consumption || 0)
-      productionMonth += Number(r.production || 0)
-    }
-    creditAccum += Number(r.credit || 0)
-  })
-
-  const netMonth = consumptionMonth - productionMonth
-
-  // Find active tariff for this date and using current meter info (distribuidora/company, tipo_servicio/segment)
-  const companyParam = meterInfo?.distribuidora || undefined
-  const segmentParam = meterInfo?.tipo_servicio || undefined
-  const activeTariff = findActiveTariffForDate(new Date().toISOString(), companyParam, segmentParam)
-
-  // Compute invoice for the month: prorate fixed charge per month
-  const invoice = activeTariff ? computeInvoiceForPeriod(consumptionMonth, productionMonth, activeTariff, { forUnit: 'month', date: new Date().toISOString(), credits_kWh: creditAccum }) : { total_due_Q: 0 }
-
-  // Estimated bill: prefer last delta's invoice if available, otherwise month invoice
-  let estimatedBill = invoice.total_due_Q
-  const deltas = computeDeltas(readings)
-  let lastDelta = null
-  if (deltas && deltas.length > 0) {
-    lastDelta = deltas[deltas.length - 1]
-    if (lastDelta) {
-      try {
-        const lastTariff = findActiveTariffForDate(lastDelta.date)
-        if (lastTariff) {
-          const lastInv = computeInvoiceForPeriod(Number(lastDelta.consumption || 0), Number(lastDelta.production || 0), lastTariff, { forUnit: 'period', date: lastDelta.date })
-          if (lastInv && typeof lastInv.total_due_Q === 'number') {
-            estimatedBill = lastInv.total_due_Q
-          }
-        }
-      } catch (e) { /* ignore and fall back */ }
-    }
-  }
-
-  // Compute latest saldo and accumulated saldo
-  let latestSaldo = 0
-  let accumulatedSaldo = 0
-  if (deltas && deltas.length > 0) {
-    const latest = deltas[deltas.length - 1]
-    latestSaldo = (Number(latest.production) || 0) - (Number(latest.consumption) || 0)
-    accumulatedSaldo = deltas.reduce((acc, cur) => acc + ((Number(cur.production) || 0) - (Number(cur.consumption) || 0)), 0)
-  }
-
-  // Find readings that do not have an active tariff assigned
-  let readingsMissingTariff: string[] = []
-  try {
-    const missing = readings.filter(r => {
-      try {
-        const t = findActiveTariffForDate(r.date)
-        return !t
-      } catch (e) { return true }
+    readings.forEach(r => {
+      const d = new Date(r.date)
+      // Use UTC methods to ensure a reading stored as "2025-11-01T00:00:00Z" counts as November, even if local time is Oct 31
+      if (d.getUTCMonth() === thisMonth && d.getUTCFullYear() === thisYear) {
+        consumptionMonth += Number(r.consumption || 0)
+        productionMonth += Number(r.production || 0)
+      }
+      creditAccum += Number(r.credit || 0)
     })
-    // Unique dates
-    const uniq = Array.from(new Set(missing.map(m => new Date(m.date).toISOString().split('T')[0])))
-    readingsMissingTariff = uniq
-  } catch (e) { readingsMissingTariff = [] }
+
+    // Find active tariff for this date and using current meter info (distribuidora/company, tipo_servicio/segment)
+    const companyParam = meterInfo?.distribuidora || undefined
+    const segmentParam = meterInfo?.tipo_servicio || undefined
+    const activeTariff = findActiveTariffForDate(new Date().toISOString(), companyParam, segmentParam)
+
+    // Compute invoice for the month: prorate fixed charge per month
+    const invoice = activeTariff ? computeInvoiceForPeriod(consumptionMonth, productionMonth, activeTariff, { forUnit: 'month', date: new Date().toISOString(), credits_kWh: creditAccum }) : { total_due_Q: 0 }
+
+    // Estimated bill: prefer last delta's invoice if available, otherwise month invoice
+    let estimatedBill = invoice.total_due_Q
+    const deltas = computeDeltas(readings)
+    let lastDelta = null
+    if (deltas && deltas.length > 0) {
+      lastDelta = deltas[deltas.length - 1]
+      if (lastDelta) {
+        try {
+          const lastTariff = findActiveTariffForDate(lastDelta.date)
+          if (lastTariff) {
+            const lastInv = computeInvoiceForPeriod(Number(lastDelta.consumption || 0), Number(lastDelta.production || 0), lastTariff, { forUnit: 'period', date: lastDelta.date })
+            if (lastInv && typeof lastInv.total_due_Q === 'number') {
+              estimatedBill = lastInv.total_due_Q
+            }
+          }
+        } catch (e) { /* ignore and fall back */ }
+      }
+    }
+
+    // Compute latest saldo and accumulated saldo
+    let latestSaldo = 0
+    let accumulatedSaldo = 0
+    if (deltas && deltas.length > 0) {
+      const latest = deltas[deltas.length - 1]
+      latestSaldo = (Number(latest.production) || 0) - (Number(latest.consumption) || 0)
+      accumulatedSaldo = deltas.reduce((acc, cur) => acc + ((Number(cur.production) || 0) - (Number(cur.consumption) || 0)), 0)
+    }
+
+    // Find readings that do not have an active tariff assigned
+    let readingsMissingTariff: string[] = []
+    try {
+      const missing = readings.filter(r => {
+        try {
+          const t = findActiveTariffForDate(r.date)
+          return !t
+        } catch (e) { return true }
+      })
+      // Unique dates
+      const uniq = Array.from(new Set(missing.map(m => new Date(m.date).toISOString().split('T')[0])))
+      readingsMissingTariff = uniq
+    } catch (e) { readingsMissingTariff = [] }
+
+    return { consumptionMonth, productionMonth, estimatedBill, lastDelta, latestSaldo, accumulatedSaldo, readingsMissingTariff, activeTariff }
+  }, [readings, meterInfo, tariffs])
 
   // Compute chart data (rows and cumulativeRows) for charts
-  let chartRows: any[] = []
-  let cumulativeRows: any[] = []
-  let chartRowsAvg: any[] = []
-  let chartRowsAvgProd: any[] = []
+  const { chartRows, cumulativeRows, chartRowsAvg, chartRowsAvgProd } = React.useMemo(() => {
+    let chartRows: any[] = []
+    let cumulativeRows: any[] = []
+    let chartRowsAvg: any[] = []
+    let chartRowsAvgProd: any[] = []
 
-  try {
-    if (readings && readings.length >= 2) {
-      const items = [...readings].map(r => ({ ...r, date: new Date(r.date).toISOString() }))
-      items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+    try {
+      if (readings && readings.length >= 2) {
+        const items = [...readings].map(r => ({ ...r, date: new Date(r.date).toISOString() }))
+        items.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-      for (let i = 1; i < items.length; i++) {
-        const prev = items[i - 1]
-        const curr = items[i]
-        const consCurr = Number(curr.consumption || 0)
-        const prodCurr = Number(curr.production || 0)
-        const consPrev = Number(prev.consumption || 0)
-        const prodPrev = Number(prev.production || 0)
-        const consumptionDelta = consCurr - consPrev
-        const productionDelta = prodCurr - prodPrev
-        const net = productionDelta - consumptionDelta
-        chartRows.push({ date: curr.date.split('T')[0], consumption: consumptionDelta, production: productionDelta, net })
+        for (let i = 1; i < items.length; i++) {
+          const prev = items[i - 1]
+          const curr = items[i]
+          const consCurr = Number(curr.consumption || 0)
+          const prodCurr = Number(curr.production || 0)
+          const consPrev = Number(prev.consumption || 0)
+          const prodPrev = Number(prev.production || 0)
+          const consumptionDelta = consCurr - consPrev
+          const productionDelta = prodCurr - prodPrev
+          const net = productionDelta - consumptionDelta
+          chartRows.push({ date: curr.date.split('T')[0], consumption: consumptionDelta, production: productionDelta, net })
+        }
+
+        // Build average kWh/day series (consumptionDelta / days between readings)
+        const MS_PER_DAY = 1000 * 60 * 60 * 24
+        const avgConsSeries: any[] = []
+        const avgProdSeries: any[] = []
+
+        for (let i = 1; i < items.length; i++) {
+          const prev = items[i - 1]
+          const curr = items[i]
+          const consumptionDelta = Number(curr.consumption || 0) - Number(prev.consumption || 0)
+          const productionDelta = Number(curr.production || 0) - Number(prev.production || 0)
+          const days = Math.max(0, Math.floor((new Date(curr.date).getTime() - new Date(prev.date).getTime()) / MS_PER_DAY))
+          const avgCons = days > 0 ? (consumptionDelta / days) : null
+          const avgProd = days > 0 ? (productionDelta / days) : null
+          avgConsSeries.push({ date: curr.date.split('T')[0], avg: avgCons, raw: consumptionDelta, days })
+          avgProdSeries.push({ date: curr.date.split('T')[0], avg: avgProd, raw: productionDelta, days })
+        }
+
+        let running = 0
+        cumulativeRows = chartRows.map(r => {
+          running += (Number(r.production) || 0) - (Number(r.consumption) || 0)
+          return { ...r, cumulative: running, positive: Math.max(running, 0), negative: Math.abs(Math.min(running, 0)) }
+        })
+
+        // Expose avg series to outer scope
+        chartRowsAvg = avgConsSeries
+        chartRowsAvgProd = avgProdSeries
       }
-
-      // Build average kWh/day series (consumptionDelta / days between readings)
-      const MS_PER_DAY = 1000 * 60 * 60 * 24
-      const avgConsSeries: any[] = []
-      const avgProdSeries: any[] = []
-
-      for (let i = 1; i < items.length; i++) {
-        const prev = items[i - 1]
-        const curr = items[i]
-        const consumptionDelta = Number(curr.consumption || 0) - Number(prev.consumption || 0)
-        const productionDelta = Number(curr.production || 0) - Number(prev.production || 0)
-        const days = Math.max(0, Math.floor((new Date(curr.date).getTime() - new Date(prev.date).getTime()) / MS_PER_DAY))
-        const avgCons = days > 0 ? (consumptionDelta / days) : null
-        const avgProd = days > 0 ? (productionDelta / days) : null
-        avgConsSeries.push({ date: curr.date.split('T')[0], avg: avgCons, raw: consumptionDelta, days })
-        avgProdSeries.push({ date: curr.date.split('T')[0], avg: avgProd, raw: productionDelta, days })
-      }
-
-      let running = 0
-      cumulativeRows = chartRows.map(r => {
-        running += (Number(r.production) || 0) - (Number(r.consumption) || 0)
-        return { ...r, cumulative: running, positive: Math.max(running, 0), negative: Math.abs(Math.min(running, 0)) }
-      })
-
-      // Expose avg series to outer scope
-      chartRowsAvg = avgConsSeries
-      chartRowsAvgProd = avgProdSeries
-    }
-  } catch (e) { chartRows = []; cumulativeRows = [] }
+    } catch (e) { chartRows = []; cumulativeRows = [] }
+    return { chartRows, cumulativeRows, chartRowsAvg, chartRowsAvgProd }
+  }, [readings])
 
   return (
     <section id="dashboard-printable"
@@ -745,6 +761,12 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                   }}><PlusCircle size={14} /><span className="hidden md:inline">Crear</span></button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {localeInfo && (
+            <div className="mt-8 mb-4 text-center text-[10px] text-gray-500 opacity-50">
+              {localeInfo}
             </div>
           )}
 
