@@ -9,7 +9,7 @@ import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
 import { exportPDF } from '../utils/pdfExport'
 import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Gauge, Settings, X, Plus, Building } from 'lucide-react'
-import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area, LabelList } from 'recharts'
+import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area, LabelList, BarChart, Bar } from 'recharts'
 
 function currency(v:number){ return `Q ${v.toFixed(2)}` }
 
@@ -371,6 +371,32 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
     return { chartRows, cumulativeRows, chartRowsAvg, chartRowsAvgProd }
   }, [readings])
 
+  // Compute billing history chart data
+  const billingChartRows = React.useMemo(() => {
+    try {
+      const deltas = computeDeltas(readings)
+      if (!deltas || deltas.length === 0) return []
+
+      const companyParam = meterInfo?.distribuidora || undefined
+      const segmentParam = meterInfo?.tipo_servicio || undefined
+
+      return deltas.map(delta => {
+        let amount = 0
+        try {
+          const tariff = findActiveTariffForDate(delta.date, companyParam, segmentParam)
+          if (tariff) {
+            const inv = computeInvoiceForPeriod(Number(delta.consumption||0), Number(delta.production||0), tariff, { forUnit: 'period', date: delta.date })
+            amount = inv.total_due_Q || 0
+          }
+        } catch (e) {}
+        return {
+          date: delta.date.split('T')[0],
+          amount: amount
+        }
+      })
+    } catch (e) { return [] }
+  }, [readings, meterInfo, tariffs])
+
   return (
     <section id="dashboard-printable"
       onTouchStart={onTouchStart}
@@ -686,6 +712,36 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
           </div>
         </div>
             {/* Facturación table removed from live UI; generated only at PDF export */}
+
+        {/* Billing History Chart */}
+        <div className="glass-card mt-6 p-4">
+          <h3 className="text-lg font-semibold text-white mb-3 flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-green-400" />
+            Facturación estimada por periodo (Total Q)
+          </h3>
+          <div style={{ width: '100%', height: 220 }}>
+            <ResponsiveContainer>
+              <LineChart data={billingChartRows} margin={{ top: 20, right: 20, left: 0, bottom: 5 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
+                <XAxis 
+                  dataKey="date" 
+                  tick={{ fill: 'var(--text)', fontSize: 9 }}
+                  tickFormatter={(value) => {
+                    const date = new Date(value)
+                    const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
+                    return `${monthNames[date.getMonth()]}/${date.getFullYear().toString().slice(-2)}`
+                  }}
+                />
+                <YAxis tick={{ fill: 'var(--text)', fontSize: 9 }} tickFormatter={(val) => Number(val).toFixed(2)} />
+                <Tooltip formatter={(value: any) => [`Q ${Number(value).toFixed(2)}`, 'Total']} itemStyle={{ color: 'var(--text)' }} contentStyle={{ background: 'var(--bg-2)', borderColor: 'rgba(0,0,0,0.06)' }} wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} />
+                <Legend wrapperStyle={{ color: 'var(--text)' }} />
+                <Line type="monotone" dataKey="amount" name="Total Factura (Q)" stroke="#4ade80" strokeWidth={2.5} dot={{ r: 3 }} isAnimationActive={false}>
+                  <LabelList dataKey="amount" position="top" style={{ fontSize: 8, fill: 'var(--text)' }} formatter={(v:any)=> `Q${Number(v).toFixed(2)}`} />
+                </Line>
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
 
       <SeasonalAnalysis key={`${refreshKey}-${currentMeterId}`} meterId={currentMeterId} onConfigureMeter={openCurrentMeterConfig} />
 

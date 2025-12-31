@@ -1,5 +1,6 @@
 import React from 'react'
-import { getReadings, saveReadings, getAllTariffs, createReading, type ReadingRecord, type TariffRecord } from '../services/supabasePure'
+import { getReadings, saveReadings, getAllTariffs, type ReadingRecord, type TariffRecord } from '../services/supabasePure'
+import { updateReading } from '../services/readingsService'
 import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
 import { showToast } from '../services/toast'
 import { X, Save } from 'lucide-react'
@@ -151,35 +152,17 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
       return 
     }
     
-    // create reading object
-    const reading = { 
-      date: new Date(form.date).toISOString(), 
-      consumption, 
-      production,
-      // Use contador as the public meter identifier so reads match getReadings(currentMeterId)
-      meter_id: currentMeter.contador || '',
-      credit: 0 // Default credit value
-    }
-    
     try {
       setLoading(true)
 
-      if (typeof editingIndex === 'number' && editingIndex >= 0 && editingIndex < readings.length) {
-        // Editing: not fully implemented yet
-        showToast('Funcionalidad de edición no implementada completamente', 'warning')
-      } else {
-        // Add new reading: persist to Supabase using createReading
-        // createReading expects (meterId, reading)
-        try {
-          await createReading(reading.meter_id, reading)
-          showToast('Lectura guardada en Supabase', 'success')
-        } catch (err: any) {
-          console.error('Error creating reading in Supabase', err)
-          const msg = err?.message ? `Error guardando lectura en Supabase: ${err.message}` : 'Error guardando lectura en Supabase'
-          showToast(msg, 'error')
-          return
-        }
-      }
+      // Usamos la función updateReading que maneja upsert (insertar o actualizar)
+      await updateReading(
+        currentMeter.contador || '',
+        form.date,
+        consumption,
+        production
+      )
+      showToast('Lectura guardada correctamente', 'success')
 
       // Ensure parent refresh completes before closing the modal
       try {
@@ -188,9 +171,10 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
         // parent might not return a promise, ignore
       }
       onClose()
-    } catch(e) {
+    } catch(e: any) {
       console.error('save reading', e)
-      showToast('Error guardando lectura', 'error')
+      const msg = e?.message || 'Error guardando lectura'
+      showToast(msg, 'error')
     } finally {
       setLoading(false)
     }

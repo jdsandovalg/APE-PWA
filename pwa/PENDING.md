@@ -3,9 +3,7 @@
 ## 📋 Pendientes (To-Do)
 
 1.  **Implementar Edición de Lecturas (`AddReadingModal.tsx`)**
-    *   **Estado Actual:** Al intentar guardar una edición, muestra un toast: "Funcionalidad de edición no implementada completamente".
-    *   **Acción:** Implementar la lógica de `UPDATE` (o `upsert`) en Supabase.
-    *   **Requisito:** Debe detectar si es una edición (por ID o fecha+contador) y actualizar el registro existente en lugar de crear uno nuevo.
+    *   **Estado:** ✅ **COMPLETADO**. Se implementó `updateReading` con `upsert` en `readingsService.ts` y se integró en el modal.
 
 2.  **Consistencia en Selección de Medidor**
     *   **Estado:** Se corrigió para que `AddReadingModal` reciba `currentMeterId`.
