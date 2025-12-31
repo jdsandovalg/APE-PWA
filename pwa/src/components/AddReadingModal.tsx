@@ -1,7 +1,6 @@
 import React from 'react'
-import { getReadings, saveReadings, getAllTariffs, type ReadingRecord, type TariffRecord } from '../services/supabasePure'
+import { getReadings, saveReadings, getAllTariffs, createReading, type ReadingRecord, type TariffRecord } from '../services/supabasePure'
 import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
-import { supabase } from '../services/supabase'
 import { showToast } from '../services/toast'
 import { X, Save } from 'lucide-react'
 
@@ -12,7 +11,7 @@ type Props = {
   currentMeterId?: string
 }
 
-type InitialReading = { id?: string | number, date: string, consumption: number | string, production: number | string }
+type InitialReading = { date: string, consumption: number | string, production: number | string }
 
 type FormState = {
   date: string,
@@ -27,30 +26,6 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
   const [meters, setMeters] = React.useState<MeterRecord[]>([])
   const [tariffs, setTariffs] = React.useState<any[]>([])
   const [loading, setLoading] = React.useState(false)
-
-  const activeMeter = React.useMemo(() => {
-    if (meters.length === 0) return null
-    if (currentMeterId) {
-      return meters.find(m => m.contador === currentMeterId || m.id === currentMeterId) || meters[0]
-    }
-    return meters[0]
-  }, [meters, currentMeterId])
-
-  // Determine the ID of the record being edited.
-  // If initial.id is missing, try to find the record in the loaded readings by date + meter.
-  const derivedId = React.useMemo(() => {
-    if (initial?.id) return initial.id
-    if (initial && activeMeter && readings.length > 0) {
-      const targetDate = new Date(initial.date).toISOString().split('T')[0]
-      const found = readings.find(r => {
-        const rDate = new Date(r.date).toISOString().split('T')[0]
-        const meterMatch = r.meter_id === activeMeter.contador || r.meter_id === activeMeter.id
-        return meterMatch && rDate === targetDate
-      })
-      if (found) return (found as any).id
-    }
-    return undefined
-  }, [initial, readings, activeMeter])
 
   React.useEffect(() => {
     if (open) {
@@ -101,9 +76,7 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
       // normalize items to ISO dates
       const items = [...all].map(r=>({ ...r, date: new Date(r.date).toISOString() }))
       // if editing an existing reading (initial provided), exclude that exact entry
-      const filtered = initial?.id 
-        ? items.filter(it => (it as any).id !== initial.id)
-        : (initial ? items.filter(it => !(it.date === new Date(initial.date).toISOString() && Number(it.consumption) === Number(initial.consumption) && Number(it.production) === Number(initial.production))) : items)
+      const filtered = initial ? items.filter(it => !(it.date === new Date(initial.date).toISOString() && Number(it.consumption) === Number(initial.consumption) && Number(it.production) === Number(initial.production))) : items
       const sel = new Date(dateISO)
       // find the most recent reading strictly before the selected date
       const previous = filtered
@@ -131,7 +104,9 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
     if (isNaN(consumption) || isNaN(production)) { showToast('Valores numéricos inválidos', 'error'); return }
     
     // Use currentMeterId prop to find the meter, otherwise fallback to first
-    const currentMeter = activeMeter || meters[0]
+    const currentMeter = currentMeterId 
+      ? meters.find(m => m.contador === currentMeterId) || meters[0]
+      : meters[0]
 
     // integrity checks: ensure meter and tariff exist
     try{
@@ -140,7 +115,7 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
         return
       }
 
-      if (!currentMeter.id || !currentMeter.contador || !currentMeter.correlativo) {
+      if (!currentMeter || !currentMeter.contador || !currentMeter.correlativo) {
         showToast('Información del medidor incompleta (contador o correlativo faltante). Revise la sección Contadores y complete contador + correlativo.', 'error')
         return
       }
@@ -181,55 +156,23 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
       date: new Date(form.date).toISOString(), 
       consumption, 
       production,
-      meter_id: currentMeter.id,
+      // Use contador as the public meter identifier so reads match getReadings(currentMeterId)
+      meter_id: currentMeter.contador || '',
       credit: 0 // Default credit value
     }
     
     try {
       setLoading(true)
 
-      // Check if we are updating (either explicit edit or implicit overwrite of existing date)
-      let updateId = derivedId
-
-      console.log('💾 Intentando guardar:', { modo: updateId ? 'Actualizando' : 'Creando', id: updateId, datos: reading })
-
-      if (!updateId) {
-        // 1. Search in local readings (fast check)
-        const targetDate = form.date // YYYY-MM-DD
-        const existing = readings.find(r => {
-          const rDate = new Date(r.date).toISOString().split('T')[0]
-          const meterMatch = r.meter_id === currentMeter.contador || r.meter_id === currentMeter.id
-          return meterMatch && rDate === targetDate
-        })
-        if (existing) updateId = (existing as any).id
-
-        // 2. If not found locally, check DB directly to be absolutely sure (prevents PK violations)
-        if (!updateId) {
-          // Try exact match first (since we are sending this exact string, if it exists it must match)
-          const { data: remote } = await supabase
-            .from('readings')
-            .select('id')
-            .eq('meter_id', currentMeter.id)
-            .eq('date', reading.date)
-            .maybeSingle()
-          
-          if (remote?.id) updateId = remote.id
-        }
-      }
-
-      if (updateId) {
-        console.log('🔄 Ejecutando UPDATE en ID:', updateId)
-        const { error } = await supabase.from('readings').update(reading).eq('id', updateId)
-        if (error) throw error
-        showToast('Lectura actualizada', 'success')
+      if (typeof editingIndex === 'number' && editingIndex >= 0 && editingIndex < readings.length) {
+        // Editing: not fully implemented yet
+        showToast('Funcionalidad de edición no implementada completamente', 'warning')
       } else {
-        // Add new reading: use upsert with explicit conflict columns
-        // This handles the case where the unique constraint is (meter_id, date) but PK is id
+        // Add new reading: persist to Supabase using createReading
+        // createReading expects (meterId, reading)
         try {
-          console.log('➕ Ejecutando UPSERT (Insertar o Actualizar por fecha)')
-          const { error } = await supabase.from('readings').upsert(reading, { onConflict: 'meter_id, date' })
-          if (error) throw error
-          showToast('Lectura guardada', 'success')
+          await createReading(reading.meter_id, reading)
+          showToast('Lectura guardada en Supabase', 'success')
         } catch (err: any) {
           console.error('Error creating reading in Supabase', err)
           const msg = err?.message ? `Error guardando lectura en Supabase: ${err.message}` : 'Error guardando lectura en Supabase'
@@ -259,10 +202,12 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50" onClick={onClose} />
       <div className="glass-card max-w-md sm:max-w-lg w-full p-4 z-10 text-white max-h-[80vh] overflow-y-auto">
-        <h3 className="text-base font-semibold mb-2">{derivedId ? 'Actualizar' : 'Agregar'} lectura manual</h3>
-        {activeMeter && (
+        <h3 className="text-base font-semibold mb-2">{initial ? 'Actualizar' : 'Agregar'} lectura manual</h3>
+        {currentMeterId && (
           <div className="mb-3 text-xs text-gray-300">
-            {derivedId ? 'Actualizando' : 'Agregando'} lectura para el Contador: <strong className="text-white">{activeMeter.contador}</strong>
+            {initial ? 'Actualizando' : 'Agregando'} lectura para el Contador: <strong className="text-white">
+              {meters.find(m => m.contador === currentMeterId)?.contador || currentMeterId}
+            </strong>
           </div>
         )}
         <div className="grid grid-cols-1 gap-2">
@@ -279,7 +224,7 @@ export default function AddReadingModal({ open, onClose, onSaved, initial, editi
         </div>
         <div className="mt-3 flex justify-end gap-2">
           <button className="glass-button p-1 flex items-center gap-2 text-sm" title="Cancelar" aria-label="Cancelar" onClick={onClose}><X size={12} /><span className="hidden md:inline">Cancelar</span></button>
-          <button className="glass-button p-1 bg-blue-600 text-white flex items-center gap-2 text-sm" title="Guardar" aria-label="Guardar" onClick={handleSave}><Save size={12} /><span className="hidden md:inline">{derivedId ? 'Actualizar' : 'Guardar'}</span></button>
+          <button className="glass-button p-1 bg-blue-600 text-white flex items-center gap-2 text-sm" title="Guardar" aria-label="Guardar" onClick={handleSave}><Save size={12} /><span className="hidden md:inline">{initial ? 'Actualizar' : 'Guardar'}</span></button>
         </div>
       </div>
     </div>

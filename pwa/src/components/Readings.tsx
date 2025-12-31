@@ -18,7 +18,7 @@ export default function Readings(){
   const [showAddModal, setShowAddModal] = useState(false)
   const [showConfirmClear, setShowConfirmClear] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
-  const [editingInitial, setEditingInitial] = useState<{id?: string|number, date:string, consumption:number, production:number} | null>(null)
+  const [editingInitial, setEditingInitial] = useState<{date:string, consumption:number, production:number} | null>(null)
 
   useEffect(() => {
     loadInitialData()
@@ -112,9 +112,6 @@ export default function Readings(){
     const merged = [...parsed, ...data]
     setData(merged)
     await saveReadings(currentMeterId, merged)
-    // Reload from DB to ensure we have the generated IDs for the new rows
-    const fresh = await getReadings(currentMeterId)
-    setData(fresh)
     setMessage(`Importadas ${parsed.length} filas desde ${srcName}`)
   }
 
@@ -179,9 +176,6 @@ export default function Readings(){
     setData(ordered)
     if (currentMeterId) {
       await saveReadings(currentMeterId, ordered)
-      // Reload from DB to ensure we have the generated IDs
-      const fresh = await getReadings(currentMeterId)
-      setData(fresh)
     }
     setMessage(`Calculados ${deltas.length} periodos (deltas)`)
   }
@@ -365,7 +359,7 @@ export default function Readings(){
                   <td className="py-1 text-center">
                     <button className="glass-button px-2 py-1 text-xs inline-flex items-center gap-1" title="Editar lectura" aria-label={`Editar lectura ${new Date(r.date).toLocaleDateString(undefined, { timeZone: 'UTC' })}`} onClick={()=>{
                       setEditingIndex(idx)
-                      setEditingInitial({ id: r.id, date: r.date, consumption: Number(r.consumption||0), production: Number(r.production||0) })
+                      setEditingInitial({ date: r.date, consumption: Number(r.consumption||0), production: Number(r.production||0) })
                       setShowAddModal(true)
                     }}><Edit2 size={14} /></button>
                   </td>
