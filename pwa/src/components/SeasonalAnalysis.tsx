@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { Sun, Settings, Info, X } from 'lucide-react'
+import { Sun, Settings, Info, X, MapPin, Navigation, Globe } from 'lucide-react'
 import { getReadings, type ReadingRecord } from '../services/supabasePure'
 import { getAllMeters } from '../services/supabaseBasic'
 import * as suncalc from 'suncalc'
@@ -31,6 +31,13 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
   const [highYieldSeason, setHighYieldSeason] = useState<'summer' | 'winter'>('summer')
   const cardRef = useRef<HTMLDivElement>(null)
   const [modalWidth, setModalWidth] = useState(0)
+  const [showLocationModal, setShowLocationModal] = useState(false)
+  const latInputRef = useRef<HTMLInputElement>(null)
+  const [manualLat, setManualLat] = useState('')
+  const [manualLon, setManualLon] = useState('')
+  const [countries, setCountries] = useState<any[]>([])
+  const [selectedFlag, setSelectedFlag] = useState('')
+  const [loadingCountries, setLoadingCountries] = useState(false)
 
   useEffect(() => {
     loadSeasonalData()
@@ -47,6 +54,35 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [showDetails])
+
+  useEffect(() => {
+    if (showLocationModal && countries.length === 0) {
+      fetchCountries()
+    }
+  }, [showLocationModal])
+
+  async function fetchCountries() {
+    try {
+      setLoadingCountries(true)
+      const res = await fetch('https://restcountries.com/v3.1/all?fields=name,latlng,cca2,translations,flag')
+      if (!res.ok) throw new Error('Error al obtener lista de países')
+      const data = await res.json()
+      
+      const formatted = data.map((c: any) => ({
+        code: c.cca2,
+        name: c.translations?.spa?.common || c.name.common,
+        flag: c.flag || '🏳️',
+        lat: c.latlng[0],
+        lon: c.latlng[1]
+      })).sort((a: any, b: any) => a.name.localeCompare(b.name))
+      
+      setCountries(formatted)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setLoadingCountries(false)
+    }
+  }
 
   function parseSystemInfo(systemString: string) {
     const panelsMatch = systemString.match(/(\d+)\s*paneles?/i)
@@ -108,24 +144,68 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
     }
   }
 
-  async function handleUpdateLocation() {
+  function openLocationModal() {
+    if (cardRef.current) setModalWidth(cardRef.current.offsetWidth)
+    // Cargar coordenadas actuales o usar defecto GT
+    let lat = 14.6349
+    let lon = -90.5069
+    try {
+      const stored = localStorage.getItem('ape_coords')
+      if (stored) {
+        const parsed = JSON.parse(stored)
+        if (typeof parsed.lat === 'number') lat = parsed.lat
+        if (typeof parsed.lng === 'number') lon = parsed.lng
+      }
+    } catch (e) {}
+    setManualLat(String(lat))
+    setManualLon(String(lon))
+    setShowLocationModal(true)
+  }
+
+  async function handleGPSRequest() {
     showToast('Solicitando ubicación precisa...', 'success')
     const ok = await requestBrowserGeolocation()
     if (ok) {
       showToast('Ubicación actualizada', 'success')
       loadSeasonalData()
+      setShowLocationModal(false)
     } else {
-      showToast('No se pudo obtener la ubicación. Verifique permisos.', 'error')
+      showToast('No se pudo obtener GPS. Por favor ingrese las coordenadas manualmente.', 'warning')
+      setTimeout(() => latInputRef.current?.focus(), 100)
     }
+  }
+
+  function handleCountrySelect(e: React.ChangeEvent<HTMLSelectElement>) {
+    const code = e.target.value
+    const country = countries.find(c => c.code === code)
+    if (country) {
+      setManualLat(String(country.lat))
+      setManualLon(String(country.lon))
+      setSelectedFlag(country.flag)
+    }
+  }
+
+  function handleManualSave() {
+    const lat = parseFloat(manualLat)
+    const lon = parseFloat(manualLon)
+    if (isNaN(lat) || isNaN(lon)) {
+      showToast('Coordenadas inválidas', 'error')
+      return
+    }
+    localStorage.setItem('ape_coords', JSON.stringify({ lat, lng: lon }))
+    showToast('Ubicación manual guardada', 'success')
+    setShowLocationModal(false)
+    loadSeasonalData()
   }
 
   function calculateSeasonalMetrics(readings: ReadingRecord[]) {
     if (!readings.length) return
 
     // Get user's location dynamically from ape_coords (managed by ThemeToggle)
-    let lat = -34.6037 // Default Buenos Aires
-    let lon = -58.3816
-    let locSource = 'Default'
+    // Default to Guatemala City (User's region) to avoid Southern Hemisphere inversion if GPS is missing
+    let lat = 14.6349 
+    let lon = -90.5069
+    let locSource = 'Default (GT)'
 
     try {
       const stored = localStorage.getItem('ape_coords')
@@ -440,7 +520,7 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
       {locationDebug && (
         <div className="mt-4 pt-2 border-t border-gray-700 text-[10px] text-gray-500 text-center flex items-center justify-center gap-2">
           <span>Ubicación: {locationDebug}</span>
-          <button onClick={handleUpdateLocation} className="text-blue-400 hover:text-blue-300 underline cursor-pointer" title="Actualizar ubicación GPS">
+          <button onClick={openLocationModal} className="text-blue-400 hover:text-blue-300 underline cursor-pointer" title="Actualizar ubicación GPS">
             Cambiar
           </button>
         </div>
@@ -555,6 +635,84 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
                  </div>
                )
             })()}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {showLocationModal && createPortal(
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={() => setShowLocationModal(false)} />
+          <div className="glass-card p-6 z-10 text-white relative shadow-2xl border border-white/10 bg-black/40 backdrop-blur-xl" style={{ width: modalWidth || '100%', maxWidth: '100%' }}>
+            <div className="flex items-start justify-between mb-4">
+              <h3 className="text-lg font-semibold flex items-center gap-2">
+                <MapPin size={20} className="text-yellow-400" />
+                Configurar Ubicación
+              </h3>
+              <button onClick={() => setShowLocationModal(false)} className="glass-button p-2" title="Cerrar"><X size={16} /></button>
+            </div>
+            
+            <div className="space-y-4">
+              <button onClick={handleGPSRequest} className="w-full glass-button p-3 flex items-center justify-center gap-2 bg-blue-500/20 hover:bg-blue-500/30 border-blue-500/30">
+                <Navigation size={16} />
+                Detectar con GPS
+              </button>
+
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-white/10"></div>
+                <span className="flex-shrink-0 mx-2 text-xs text-gray-500">O seleccionar país</span>
+                <div className="flex-grow border-t border-white/10"></div>
+              </div>
+
+              <div className="relative">
+                <div className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none flex items-center justify-center w-5">
+                  {selectedFlag ? <span className="text-lg leading-none">{selectedFlag}</span> : <Globe size={14} />}
+                </div>
+                <select 
+                  className="w-full bg-white/5 border border-white/10 rounded p-2 pl-9 text-sm appearance-none text-gray-300 focus:text-white focus:border-white/30 transition-colors"
+                  onChange={handleCountrySelect}
+                  defaultValue=""
+                  disabled={loadingCountries}
+                >
+                  <option value="" disabled>
+                    {loadingCountries ? 'Cargando lista...' : 'Seleccione un país...'}
+                  </option>
+                  {countries.map(c => (
+                    <option key={c.code} value={c.code}>{c.flag} {c.name}</option>
+                  ))}
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none">
+                  <svg className="w-4 h-4 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                </div>
+              </div>
+              
+              <div className="relative flex py-1 items-center">
+                <div className="flex-grow border-t border-white/10"></div>
+                <span className="flex-shrink-0 mx-2 text-xs text-gray-500">O manual</span>
+                <div className="flex-grow border-t border-white/10"></div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Latitud</label>
+                  <input ref={latInputRef} type="number" step="any" value={manualLat} onChange={e => setManualLat(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded p-2 text-sm" placeholder="14.6349" />
+                </div>
+                <div>
+                  <label className="text-xs text-gray-400 block mb-1">Longitud</label>
+                  <input type="number" step="any" value={manualLon} onChange={e => setManualLon(e.target.value)} className="w-full bg-white/5 border border-white/10 rounded p-2 text-sm" placeholder="-90.5069" />
+                </div>
+              </div>
+
+              <div className="pt-2">
+                <button onClick={handleManualSave} className="w-full glass-button p-2 bg-green-600 hover:bg-green-500 text-white">
+                  Guardar Coordenadas
+                </button>
+              </div>
+              
+              <p className="text-[10px] text-gray-500 text-center mt-2">
+                Necesario para calcular las horas de sol y la eficiencia estacional correcta.
+              </p>
+            </div>
           </div>
         </div>,
         document.body
