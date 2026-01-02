@@ -9,7 +9,7 @@ import SeasonalAnalysis from './SeasonalAnalysis'
 import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
 import { exportPDF } from '../utils/pdfExport'
-import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Gauge, Settings, X, Plus, Building } from 'lucide-react'
+import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Gauge, Settings, X, Plus, Building, LineChart as ChartIcon } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area, LabelList } from 'recharts'
 
 function currency(v:number){ return `Q ${v.toFixed(2)}` }
@@ -411,6 +411,91 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
     } catch (e) { return [] }
   }, [readings, meterInfo, tariffs])
 
+  // Forecasting Logic (Trend-Adjusted Seasonality)
+  const consumptionForecast = React.useMemo(() => {
+    if (!readings || readings.length < 2) return null
+
+    // 1. Calculate monthly totals from deltas
+    const deltas = computeDeltas(readings)
+    const monthly: Record<string, number> = {}
+    deltas.forEach(d => {
+      const date = new Date(d.date)
+      // Use UTC to avoid timezone shifts
+      const key = `${date.getUTCFullYear()}-${String(date.getUTCMonth()+1).padStart(2,'0')}`
+      if (!monthly[key]) monthly[key] = 0
+      monthly[key] += Number(d.consumption || 0)
+    })
+
+    // 2. Determine context (Next Month after Latest Registered)
+    // Find latest month key available in data
+    const keys = Object.keys(monthly).sort()
+    if (keys.length === 0) return null
+    const lastKey = keys[keys.length - 1] // e.g. "2025-12"
+    const [lastYearStr, lastMonthStr] = lastKey.split('-')
+    const lastYear = parseInt(lastYearStr)
+    const lastMonth = parseInt(lastMonthStr)
+
+    // Target is next month relative to the last registered data
+    let targetYear = lastYear
+    let targetMonth = lastMonth + 1
+    if (targetMonth > 12) {
+      targetMonth = 1
+      targetYear += 1
+    }
+    
+    const monthNames = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre']
+    const targetMonthName = monthNames[targetMonth - 1]
+
+    // History: Same month last year (Target - 1 year)
+    const seasonalityKey = `${targetYear-1}-${String(targetMonth).padStart(2,'0')}`
+    const seasonalityCons = monthly[seasonalityKey]
+
+    // Trend: Compare Last Registered Month (Current Year vs Last Year)
+    const trendCurrentKey = lastKey
+    const trendLastYearKey = `${lastYear-1}-${String(lastMonth).padStart(2,'0')}`
+    
+    const trendCurrentCons = monthly[trendCurrentKey]
+    const trendLastYearCons = monthly[trendLastYearKey]
+
+    let forecast = 0
+    let label = ''
+    let trendPercent = 0
+    let formula = ''
+
+    // 1. Try Trend-Adjusted Seasonality (Best accuracy)
+    if (seasonalityCons !== undefined && seasonalityCons > 0 && 
+        trendCurrentCons !== undefined && trendLastYearCons !== undefined && trendLastYearCons > 0) {
+        
+        const ratio = trendCurrentCons / trendLastYearCons
+        forecast = seasonalityCons * ratio
+        trendPercent = (ratio - 1) * 100
+        label = `Basado en ${seasonalityCons.toFixed(0)} kWh (${targetMonthName} ${targetYear-1}) ajustado por tendencia (${trendPercent > 0 ? '+' : ''}${trendPercent.toFixed(1)}%)`
+        formula = `${seasonalityCons.toFixed(0)} × (${trendCurrentCons.toFixed(0)} / ${trendLastYearCons.toFixed(0)})`
+    
+    } else {
+      // 2. Fallback: Moving Average of last 3 months (Smart Fallback)
+      // Used if we can't calculate trend (e.g. missing history), even if we have the raw month from last year.
+      const recentCount = 3
+      const recentKeys = keys.slice(-recentCount)
+      
+      if (recentKeys.length > 0) {
+        const sum = recentKeys.reduce((acc, k) => acc + monthly[k], 0)
+        forecast = sum / recentKeys.length
+        label = `Promedio últimos ${recentKeys.length} meses (sin histórico anual completo para tendencia)`
+        formula = `(${recentKeys.map(k => monthly[k].toFixed(0)).join('+')}) / ${recentKeys.length}`
+      } else if (seasonalityCons !== undefined && seasonalityCons > 0) {
+        // 3. Last Resort: Pure Seasonality
+        forecast = seasonalityCons
+        label = `Basado en consumo de ${targetMonthName} ${targetYear-1} (${seasonalityCons.toFixed(0)} kWh)`
+        formula = `${seasonalityCons.toFixed(0)} (Histórico puro)`
+      } else {
+        return null
+      }
+    }
+
+    return { kwh: forecast, label, trendPercent, monthName: targetMonthName, year: targetYear, formula }
+  }, [readings])
+
   return (
     <section id="dashboard-printable"
       onTouchStart={onTouchStart}
@@ -518,7 +603,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm text-gray-300">Factura Estimada</h3>
+              <h3 className="text-sm text-gray-300">Valor Ultima Factura</h3>
               <p className="text-2xl mt-2">{currency(estimatedBill)}</p>
               <div className="text-xs text-gray-400 mt-1">
                 {activeTariff ? `${activeTariff.header.company} — ${activeTariff.header.segment} (${activeTariff.header.period.from} → ${activeTariff.header.period.to})` : 'Sin tarifa activa (usar tarifa por defecto)'}
@@ -547,6 +632,25 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
             <TrendingUp className="text-yellow-400" size={28} />
           </div>
         </div>
+        {consumptionForecast && (
+          <div className="card bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border-indigo-500/30">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm text-indigo-200">Pronóstico {consumptionForecast.monthName} {consumptionForecast.year}</h3>
+                <p className="text-2xl mt-2 text-indigo-100">{consumptionForecast.kwh.toFixed(0)} kWh</p>
+                <div className="text-xs text-indigo-300/70 mt-1 max-w-[200px] leading-tight">
+                  {consumptionForecast.label}
+                  {consumptionForecast.formula && (
+                    <div className="mt-1 pt-1 border-t border-indigo-500/20 font-mono text-[10px] opacity-80">
+                      f = {consumptionForecast.formula}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <ChartIcon className="text-indigo-400" size={28} />
+            </div>
+          </div>
+        )}
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
@@ -587,18 +691,22 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
             <Zap className="w-5 h-5 text-yellow-400" />
             Producción neta por periodo (Entregado - Recibido)
           </h3>
-          <div style={{ width: '100%', height: 220 }}>
+          <div style={{ width: '100%', height: 270 }}>
             <ResponsiveContainer>
-              <LineChart data={chartRows} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <LineChart data={chartRows} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis 
                   dataKey="date" 
+                  interval={0}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
                   tick={{ fill: 'var(--text)', fontSize: 9 }}
                   tickFormatter={(value) => {
                     const date = new Date(value)
                     const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-                    const month = monthNames[date.getMonth()]
-                    const year = date.getFullYear().toString().slice(-2)
+                    const month = monthNames[date.getUTCMonth()]
+                    const year = date.getUTCFullYear().toString().slice(-2)
                     return `${month}/${year}`
                   }}
                 />
@@ -611,9 +719,15 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                   wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} 
                 />
                 <Legend wrapperStyle={{ color: 'var(--text)' }} />
-                <Line type="monotone" dataKey="net" name="Neto (kWh)" stroke="#38bdf8" strokeWidth={3} dot={false} isAnimationActive={false} />
-                <Line type="monotone" dataKey="production" name="Producción" stroke="#34d399" strokeWidth={2.5} dot={false} isAnimationActive={false} />
-                <Line type="monotone" dataKey="consumption" name="Consumo" stroke="#fb7185" strokeWidth={2.5} dot={false} isAnimationActive={false} />
+                <Line type="monotone" dataKey="net" name="Neto (kWh)" stroke="#38bdf8" strokeWidth={3} dot={{ r: 4 }} isAnimationActive={false}>
+                  <LabelList dataKey="net" position="top" style={{ fontSize: 8, fill: 'var(--text)' }} formatter={(v:any)=> Number(v).toFixed(0)} />
+                </Line>
+                <Line type="monotone" dataKey="production" name="Producción" stroke="#34d399" strokeWidth={2.5} dot={false} isAnimationActive={false}>
+                  <LabelList dataKey="production" position="top" style={{ fontSize: 8, fill: 'var(--text)' }} formatter={(v:any)=> Number(v).toFixed(0)} />
+                </Line>
+                <Line type="monotone" dataKey="consumption" name="Consumo" stroke="#fb7185" strokeWidth={2.5} dot={false} isAnimationActive={false}>
+                  <LabelList dataKey="consumption" position="top" style={{ fontSize: 8, fill: 'var(--text)' }} formatter={(v:any)=> Number(v).toFixed(0)} />
+                </Line>
               </LineChart>
             </ResponsiveContainer>
           </div>
@@ -627,7 +741,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
           </h3>
           <div style={{ width: '100%', height: 200 }}>
             <ResponsiveContainer>
-              <LineChart data={chartRowsAvg || []} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <LineChart data={chartRowsAvg || []} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis 
                   dataKey="date" 
@@ -662,7 +776,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
           </h3>
           <div style={{ width: '100%', height: 200 }}>
             <ResponsiveContainer>
-              <LineChart data={chartRowsAvgProd || []} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <LineChart data={chartRowsAvgProd || []} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis 
                   dataKey="date" 
@@ -695,18 +809,22 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
             <Zap className="w-5 h-5 text-yellow-400" />
             Saldo acumulado (kWh)
           </h3>
-          <div className="mt-2" style={{ width: '100%', height: 180 }}>
+          <div className="mt-2" style={{ width: '100%', height: 270 }}>
             <ResponsiveContainer>
-              <AreaChart data={cumulativeRows} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+              <AreaChart data={cumulativeRows} margin={{ top: 20, right: 30, left: 10, bottom: 5 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
                 <XAxis 
                   dataKey="date" 
-                  tick={{ fill: 'var(--text)', fontSize: 8 }}
+                  interval={0}
+                  angle={-45}
+                  textAnchor="end"
+                  height={60}
+                  tick={{ fill: 'var(--text)', fontSize: 9 }}
                   tickFormatter={(value) => {
                     const date = new Date(value)
                     const monthNames = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic']
-                    const month = monthNames[date.getMonth()]
-                    const year = date.getFullYear().toString().slice(-2)
+                    const month = monthNames[date.getUTCMonth()]
+                    const year = date.getUTCFullYear().toString().slice(-2)
                     return `${month}/${year}`
                   }}
                 />
@@ -719,8 +837,12 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                   wrapperStyle={{ position: 'fixed', zIndex: 99999, pointerEvents: 'auto' }} 
                 />
                 <Legend wrapperStyle={{ color: 'var(--text)' }} />
-                <Area type="monotone" dataKey="positive" name="Saldo positivo (kWh)" stroke="#34d399" fill="#134e4a" fillOpacity={0.6} />
-                <Area type="monotone" dataKey="negative" name="Saldo negativo (abs kWh)" stroke="#fb7185" fill="#4c0519" fillOpacity={0.6} />
+                <Area type="monotone" dataKey="positive" name="Saldo positivo (kWh)" stroke="#34d399" fill="#134e4a" fillOpacity={0.6}>
+                  <LabelList dataKey="positive" position="top" style={{ fontSize: 8, fill: 'var(--text)' }} formatter={(v:any)=> v > 0 ? Number(v).toFixed(0) : ''} />
+                </Area>
+                <Area type="monotone" dataKey="negative" name="Saldo negativo (abs kWh)" stroke="#fb7185" fill="#4c0519" fillOpacity={0.6}>
+                  <LabelList dataKey="negative" position="top" style={{ fontSize: 8, fill: 'var(--text)' }} formatter={(v:any)=> v > 0 ? Number(v).toFixed(0) : ''} />
+                </Area>
               </AreaChart>
             </ResponsiveContainer>
           </div>
@@ -737,7 +859,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
             <ResponsiveContainer>
               <LineChart 
                 data={billingChartRows} 
-                margin={{ top: 20, right: 20, left: 0, bottom: 5 }}
+                margin={{ top: 20, right: 30, left: 10, bottom: 5 }}
                 onClick={(e) => {
                   if (e && e.activePayload && e.activePayload[0]) {
                     setSelectedInvoiceRow(e.activePayload[0].payload)
