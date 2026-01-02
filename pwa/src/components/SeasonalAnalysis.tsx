@@ -37,6 +37,8 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
   const [manualLon, setManualLon] = useState('')
   const [countries, setCountries] = useState<any[]>([])
   const [selectedFlag, setSelectedFlag] = useState('')
+  const [selectedCountryCode, setSelectedCountryCode] = useState('')
+  const [selectedCountryName, setSelectedCountryName] = useState('')
   const [loadingCountries, setLoadingCountries] = useState(false)
 
   useEffect(() => {
@@ -149,12 +151,22 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
     // Cargar coordenadas actuales o usar defecto GT
     let lat = 14.6349
     let lon = -90.5069
+    
+    // Resetear estados visuales
+    setSelectedFlag('')
+    setSelectedCountryCode('')
+    setSelectedCountryName('')
+
     try {
       const stored = localStorage.getItem('ape_coords')
       if (stored) {
         const parsed = JSON.parse(stored)
         if (typeof parsed.lat === 'number') lat = parsed.lat
         if (typeof parsed.lng === 'number') lon = parsed.lng
+        // Recuperar bandera y código de país si existen
+        if (parsed.flag) setSelectedFlag(parsed.flag)
+        if (parsed.countryCode) setSelectedCountryCode(parsed.countryCode)
+        if (parsed.countryName) setSelectedCountryName(parsed.countryName)
       }
     } catch (e) {}
     setManualLat(String(lat))
@@ -182,6 +194,8 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
       setManualLat(String(country.lat))
       setManualLon(String(country.lon))
       setSelectedFlag(country.flag)
+      setSelectedCountryCode(code)
+      setSelectedCountryName(country.name)
     }
   }
 
@@ -192,7 +206,13 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
       showToast('Coordenadas inválidas', 'error')
       return
     }
-    localStorage.setItem('ape_coords', JSON.stringify({ lat, lng: lon }))
+    localStorage.setItem('ape_coords', JSON.stringify({ 
+      lat, 
+      lng: lon, 
+      flag: selectedFlag, 
+      countryCode: selectedCountryCode,
+      countryName: selectedCountryName
+    }))
     showToast('Ubicación manual guardada', 'success')
     setShowLocationModal(false)
     loadSeasonalData()
@@ -214,7 +234,9 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
         if (typeof parsed.lat === 'number' && typeof parsed.lng === 'number') {
           lat = parsed.lat
           lon = parsed.lng
-          locSource = 'GPS/IP'
+          // Mostrar bandera en la fuente si existe, o GPS/IP
+          const name = parsed.countryName || 'Manual'
+          locSource = parsed.flag ? `${parsed.flag} ${name}` : 'GPS/IP'
         }
       }
     } catch (e) {}
@@ -671,7 +693,7 @@ export default function SeasonalAnalysis({ meterId, onConfigureMeter }: Seasonal
                 <select 
                   className="w-full bg-white/5 border border-white/10 rounded p-2 pl-9 text-sm appearance-none text-gray-300 focus:text-white focus:border-white/30 transition-colors"
                   onChange={handleCountrySelect}
-                  defaultValue=""
+                  value={selectedCountryCode}
                   disabled={loadingCountries}
                 >
                   <option value="" disabled>
