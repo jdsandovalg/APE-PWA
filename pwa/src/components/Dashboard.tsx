@@ -457,43 +457,41 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
     const trendCurrentCons = monthly[trendCurrentKey]
     const trendLastYearCons = monthly[trendLastYearKey]
 
-    let forecast = 0
-    let label = ''
-    let trendPercent = 0
-    let formula = ''
+    const result: any = { monthName: targetMonthName, year: targetYear }
 
-    // 1. Try Trend-Adjusted Seasonality (Best accuracy)
+    // 1. Pronóstico puro (estacional) - Ajustado o Histórico
     if (seasonalityCons !== undefined && seasonalityCons > 0 && 
         trendCurrentCons !== undefined && trendLastYearCons !== undefined && trendLastYearCons > 0) {
         
         const ratio = trendCurrentCons / trendLastYearCons
-        forecast = seasonalityCons * ratio
-        trendPercent = (ratio - 1) * 100
-        label = `Basado en ${seasonalityCons.toFixed(0)} kWh (${targetMonthName} ${targetYear-1}) ajustado por tendencia (${trendPercent > 0 ? '+' : ''}${trendPercent.toFixed(1)}%)`
-        formula = `${seasonalityCons.toFixed(0)} × (${trendCurrentCons.toFixed(0)} / ${trendLastYearCons.toFixed(0)})`
-    
-    } else {
-      // 2. Fallback: Moving Average of last 3 months (Smart Fallback)
-      // Used if we can't calculate trend (e.g. missing history), even if we have the raw month from last year.
-      const recentCount = 3
-      const recentKeys = keys.slice(-recentCount)
-      
-      if (recentKeys.length > 0) {
-        const sum = recentKeys.reduce((acc, k) => acc + monthly[k], 0)
-        forecast = sum / recentKeys.length
-        label = `Promedio últimos ${recentKeys.length} meses (sin histórico anual completo para tendencia)`
-        formula = `(${recentKeys.map(k => monthly[k].toFixed(0)).join('+')}) / ${recentKeys.length}`
-      } else if (seasonalityCons !== undefined && seasonalityCons > 0) {
-        // 3. Last Resort: Pure Seasonality
-        forecast = seasonalityCons
-        label = `Basado en consumo de ${targetMonthName} ${targetYear-1} (${seasonalityCons.toFixed(0)} kWh)`
-        formula = `${seasonalityCons.toFixed(0)} (Histórico puro)`
-      } else {
-        return null
+        const trendPercent = (ratio - 1) * 100
+        result.seasonal = {
+          kwh: seasonalityCons * ratio,
+          label: `Basado en ${seasonalityCons.toFixed(0)} kWh (${targetMonthName} ${targetYear-1}) ajustado ${trendPercent >= 0 ? '+' : ''}${trendPercent.toFixed(1)}%`,
+          formula: `${seasonalityCons.toFixed(0)} × (${trendCurrentCons.toFixed(0)} / ${trendLastYearCons.toFixed(0)})`
+        }
+    } else if (seasonalityCons !== undefined && seasonalityCons > 0) {
+        result.seasonal = {
+          kwh: seasonalityCons,
+          label: `Basado en histórico ${targetMonthName} ${targetYear-1}`,
+          formula: `${seasonalityCons.toFixed(0)} (Histórico puro)`
+        }
+    }
+
+    // 2. Base: tendencia inmediata (Promedio móvil 3 meses)
+    const recentCount = 3
+    const recentKeys = keys.slice(-recentCount)
+    if (recentKeys.length > 0) {
+      const sum = recentKeys.reduce((acc, k) => acc + monthly[k], 0)
+      result.immediate = {
+        kwh: sum / recentKeys.length,
+        label: `Promedio últimos ${recentKeys.length} meses`,
+        formula: `(${recentKeys.map(k => monthly[k].toFixed(0)).join('+')}) / ${recentKeys.length}`
       }
     }
 
-    return { kwh: forecast, label, trendPercent, monthName: targetMonthName, year: targetYear, formula }
+    if (!result.seasonal && !result.immediate) return null
+    return result
   }, [readings])
 
   return (
@@ -634,20 +632,51 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
         </div>
         {consumptionForecast && (
           <div className="card bg-gradient-to-br from-indigo-900/40 to-purple-900/40 border-indigo-500/30">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm text-indigo-200">Pronóstico {consumptionForecast.monthName} {consumptionForecast.year}</h3>
-                <p className="text-2xl mt-2 text-indigo-100">{consumptionForecast.kwh.toFixed(0)} kWh</p>
-                <div className="text-xs text-indigo-300/70 mt-1 max-w-[200px] leading-tight">
-                  {consumptionForecast.label}
-                  {consumptionForecast.formula && (
-                    <div className="mt-1 pt-1 border-t border-indigo-500/20 font-mono text-[10px] opacity-80">
-                      f = {consumptionForecast.formula}
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-sm text-indigo-200 flex items-center gap-2">
+                <ChartIcon size={16} className="text-indigo-400" />
+                Pronóstico {consumptionForecast.monthName} {consumptionForecast.year}
+              </h3>
+            </div>
+            
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {/* Pronóstico Estacional */}
+              {consumptionForecast.seasonal ? (
+                <div className="bg-black/20 p-3 rounded-lg border border-indigo-500/20 relative overflow-hidden">
+                  <div className="text-xs text-indigo-300 font-medium mb-1">Pronóstico puro (estacional)</div>
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <p className="text-2xl text-indigo-100 font-semibold">{consumptionForecast.seasonal.kwh.toFixed(0)} <span className="text-sm font-normal text-indigo-300">kWh</span></p>
+                    <div className="text-xs text-indigo-400/80">
+                      ±10% <span className="font-mono">({(consumptionForecast.seasonal.kwh * 0.9).toFixed(0)} - {(consumptionForecast.seasonal.kwh * 1.1).toFixed(0)})</span>
                     </div>
-                  )}
+                  </div>
+                  <div className="text-[10px] text-indigo-300/70 mt-2 leading-tight">
+                    {consumptionForecast.seasonal.label}
+                    <div className="mt-1 font-mono opacity-60 border-t border-indigo-500/10 pt-1">f = {consumptionForecast.seasonal.formula}</div>
+                  </div>
                 </div>
-              </div>
-              <ChartIcon className="text-indigo-400" size={28} />
+              ) : (
+                <div className="bg-black/10 p-3 rounded-lg border border-white/5 flex items-center justify-center text-xs text-gray-500">Sin histórico anual</div>
+              )}
+
+              {/* Tendencia Inmediata */}
+              {consumptionForecast.immediate ? (
+                <div className="bg-black/20 p-3 rounded-lg border border-indigo-500/20 relative overflow-hidden">
+                  <div className="text-xs text-indigo-300 font-medium mb-1">Base: Pronostico tendencia inmediata</div>
+                  <div className="flex flex-wrap items-baseline gap-x-2">
+                    <p className="text-2xl text-indigo-100 font-semibold">{consumptionForecast.immediate.kwh.toFixed(0)} <span className="text-sm font-normal text-indigo-300">kWh</span></p>
+                    <div className="text-xs text-indigo-400/80">
+                      ±10% <span className="font-mono">({(consumptionForecast.immediate.kwh * 0.9).toFixed(0)} - {(consumptionForecast.immediate.kwh * 1.1).toFixed(0)})</span>
+                    </div>
+                  </div>
+                  <div className="text-[10px] text-indigo-300/70 mt-2 leading-tight">
+                    {consumptionForecast.immediate.label}
+                    <div className="mt-1 font-mono opacity-60 border-t border-indigo-500/10 pt-1">f = {consumptionForecast.immediate.formula}</div>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-black/10 p-3 rounded-lg border border-white/5 flex items-center justify-center text-xs text-gray-500">Sin datos recientes</div>
+              )}
             </div>
           </div>
         )}
