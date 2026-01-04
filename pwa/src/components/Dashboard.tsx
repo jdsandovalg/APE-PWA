@@ -9,7 +9,7 @@ import SeasonalAnalysis from './SeasonalAnalysis'
 import { showToast } from '../services/toast'
 import { computeInvoiceForPeriod } from '../services/billing'
 import { exportPDF } from '../utils/pdfExport'
-import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Gauge, Settings, X, Plus, Building, LineChart as ChartIcon } from 'lucide-react'
+import { Zap, TrendingDown, TrendingUp, DollarSign, AlertTriangle, PlusCircle, Gauge, Settings, X, Plus, Building, LineChart as ChartIcon, Copy } from 'lucide-react'
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, Legend, AreaChart, Area, LabelList } from 'recharts'
 
 function currency(v:number){ return `Q ${v.toFixed(2)}` }
@@ -355,6 +355,79 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
     }
   }
 
+  // Function to copy forecast data as JSON to clipboard
+  const handleCopyForecastJSON = async () => {
+    if (!consumptionForecast) return
+
+    const companyParam = meterInfo?.distribuidora || undefined
+    const segmentParam = meterInfo?.tipo_servicio || undefined
+    const dateForTariff = new Date().toISOString()
+    
+    // Find tariff to use for calculation
+    let tariff = findActiveTariffForDate(dateForTariff, companyParam, segmentParam)
+    if (!tariff && tariffs.length > 0) {
+       tariff = tariffs.find(t => t.header.company === companyParam) || tariffs[0]
+    }
+
+    const availableCredits = Math.max(0, accumulatedSaldo)
+
+    // Filter contributing equipment based on forecast date
+    const targetYear = consumptionForecast.year
+    const targetMonth = consumptionForecast.monthIndex
+    const targetDateStart = new Date(Date.UTC(targetYear, targetMonth - 1, 1))
+    const targetDateEnd = new Date(Date.UTC(targetYear, targetMonth, 0))
+
+    const contributingEquipment = equipment
+      .filter(eq => {
+        if (!eq.is_future) return false
+        const eqStart = new Date(eq.start_date)
+        const eqEnd = eq.end_date ? new Date(eq.end_date) : null
+        return eqStart <= targetDateEnd && (!eqEnd || eqEnd >= targetDateStart)
+      })
+      .map(eq => ({
+        name: eq.equipment_name,
+        watts: eq.power_watts,
+        hours: eq.estimated_daily_hours,
+        kwh_month: eq.energy_kwh_month,
+        start_date: eq.start_date,
+        end_date: eq.end_date
+      }))
+
+    // Helper to generate full data for a scenario
+    const generateScenarioData = (forecastItem: any) => {
+      if (!forecastItem) return null
+      let invoice = null
+      if (tariff) {
+        invoice = computeInvoiceForPeriod(forecastItem.totalKwh, 0, tariff, { forUnit: 'month', date: dateForTariff, credits_kWh: availableCredits })
+      }
+      return {
+        ...forecastItem,
+        estimatedInvoice: invoice ? {
+            total_Q: invoice.total_due_Q,
+            details: invoice
+        } : 'No tariff found',
+        tariffApplied: tariff ? { ...tariff.header, rates: tariff.rates } : null
+      }
+    }
+
+    const exportData = {
+      context: { month: consumptionForecast.monthName, year: consumptionForecast.year, meter: meterInfo?.contador, accumulatedCreditAvailable: availableCredits },
+      readingsHistory: readings,
+      deltasHistory: chartRows,
+      contributingEquipment,
+      seasonal: generateScenarioData(consumptionForecast.seasonal),
+      immediate: generateScenarioData(consumptionForecast.immediate)
+    }
+
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(exportData, null, 2))
+      showToast('Pronóstico copiado al portapapeles (JSON)', 'success')
+    } catch (err) {
+      console.error('Failed to copy', err)
+      showToast('Error al copiar', 'error')
+    }
+  }
+
   // Compute chart data (rows and cumulativeRows) for charts
   const { chartRows, cumulativeRows, chartRowsAvg, chartRowsAvgProd } = React.useMemo(() => {
     let chartRows: any[] = []
@@ -511,7 +584,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
       })
       .reduce((sum, eq) => sum + (Number(eq.energy_kwh_month) || 0), 0)
 
-    const result: any = { monthName: targetMonthName, year: targetYear }
+    const result: any = { monthName: targetMonthName, year: targetYear, monthIndex: targetMonth }
 
     // 1. Pronóstico puro (estacional) - Ajustado o Histórico
     if (seasonalityCons !== undefined && seasonalityCons > 0 && 
@@ -687,6 +760,13 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                 <ChartIcon size={16} className="text-indigo-400" />
                 Pronóstico {consumptionForecast.monthName} {consumptionForecast.year}
               </h3>
+              <button 
+                onClick={handleCopyForecastJSON}
+                className="glass-button p-1.5 text-indigo-300 hover:text-white hover:bg-white/10 rounded-lg transition-colors"
+                title="Copiar pronóstico completo a JSON"
+              >
+                <Copy size={16} />
+              </button>
             </div>
             
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">

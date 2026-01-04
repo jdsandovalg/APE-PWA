@@ -59,3 +59,25 @@ Estos acuerdos fueron propuestos por el equipo durante la sesión de trabajo y d
 
 Colocar estas reglas en práctica evita regresiones en producción y asegura que los despliegues se comporten según lo esperado.
 
+## Secuencia de Implementación Exitosa (Caso: Gestión de Equipos)
+
+Este flujo se utilizó para implementar el módulo de "Equipos y Proyecciones" (Enero 2026) y sirve como referencia para futuras funcionalidades:
+
+1.  **Base de Datos**:
+    *   Definición de tablas con restricciones (`CHECK`) y columnas generadas (`GENERATED ALWAYS`).
+    *   Creación de índices y triggers para `updated_at`.
+    *   Respaldo del SQL en carpeta `database/`.
+
+2.  **Capa de Servicios**:
+    *   Implementación de CRUD completo en servicio dedicado (`equipmentService.ts`).
+    *   Manejo de tipos TypeScript estrictos.
+
+3.  **Interfaz de Usuario (UI)**:
+    *   Uso de **Headless UI** (Combobox, Listbox, Switch) para componentes interactivos complejos.
+    *   Implementación de "Gestión Inline": Crear/Editar catálogos desde el mismo modal de uso.
+
+4.  **Control de Versiones (Flujo Ágil)**:
+    *   Desarrollo directo sobre rama principal (cuando se acuerda).
+    *   `git status` -> `git add .`
+    *   `git commit -m "feat: Título" -m "Detalles..."`
+    *   `git push`
