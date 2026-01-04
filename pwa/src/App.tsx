@@ -8,10 +8,11 @@ import Meters from './components/Meters'
 import Companies from './components/Companies'
 import Footer from './components/Footer'
 import Login from './login/page'
+import Equipment from './components/Equipment'
 import { Toaster } from 'react-hot-toast'
 
 export default function App(){
-  const [view, setView] = useState<'dashboard'|'readings'|'tariffs'|'billing'|'meters'|'companies'>('dashboard')
+  const [view, setView] = useState<'dashboard'|'readings'|'tariffs'|'billing'|'meters'|'companies'|'equipment'>('dashboard')
   const [ready, setReady] = useState(false)
   const [usuario, setUsuario] = useState<any>(null)
 
@@ -45,6 +46,7 @@ export default function App(){
           {view === 'billing' && <Billing />}
           {view === 'meters' && <Meters onNavigate={setView} />}
           {view === 'companies' && <Companies onNavigate={setView} />}
+          {view === 'equipment' && <Equipment meterId={localStorage.getItem('ape_currentMeterId') || ''} onBack={() => setView('dashboard')} />}
         </main>
         <Footer />
       </div>

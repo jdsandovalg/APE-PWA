@@ -1,11 +1,11 @@
 import React from 'react'
 import { motion } from 'framer-motion'
-import { Home, Calendar, DollarSign, Hammer, Sun, Building, LogOut } from 'lucide-react'
+import { Home, Calendar, DollarSign, Hammer, Sun, Building, LogOut, Zap } from 'lucide-react'
 import ThemeToggle from './ThemeToggle'
 import { getAllMeters, type MeterRecord } from '../services/supabaseBasic'
 import { showToast } from '../services/toast'
 
-export default function Navbar({ onNavigate, onLogout }: { onNavigate: (v:'dashboard'|'readings'|'tariffs'|'billing'|'meters'|'companies')=>void, onLogout?: () => void }){
+export default function Navbar({ onNavigate, onLogout }: { onNavigate: (v:'dashboard'|'readings'|'tariffs'|'billing'|'meters'|'companies'|'equipment')=>void, onLogout?: () => void }){
   /**
    * Navbar / header
    * ----------------
@@ -169,6 +169,10 @@ export default function Navbar({ onNavigate, onLogout }: { onNavigate: (v:'dashb
           <button onClick={()=>onNavigate('readings')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 w-full sm:w-auto`} style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
             <Calendar size={16} />
             <span className="font-medium text-sm text-left">Lecturas</span>
+          </button>
+          <button onClick={()=>onNavigate('equipment')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 w-full sm:w-auto`} style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+            <Zap size={16} />
+            <span className="font-medium text-sm text-left">Equipos</span>
           </button>
           <button onClick={()=>onNavigate('tariffs')} className={`flex items-center justify-start gap-2 px-4 py-2 rounded-lg transition-all whitespace-nowrap text-gray-300 w-full sm:w-auto`} style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
             <DollarSign size={16} />

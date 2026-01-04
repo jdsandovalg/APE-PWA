@@ -55,7 +55,14 @@ export default function InvoiceModal({ open, onClose, row }: Props){
 
   const invoice = row.invoice || {}
   // The tariff object can be at `row.tariff` (from Dashboard) or `row.invoice.tariff` (from Billing RPC)
+  const tariffObj = row.tariff || invoice?.tariff
   const rates = row.tariff?.rates || invoice?.tariff?.rates || invoice?.tariff || {}
+
+  const fmtDate = (d: any) => d && typeof d === 'string' ? d.split('T')[0] : ''
+  const tFrom = fmtDate(tariffObj?.header?.period?.from || tariffObj?.period_from || tariffObj?.header?.period_from || tariffObj?.header?.from)
+  const tTo = fmtDate(tariffObj?.header?.period?.to || tariffObj?.period_to || tariffObj?.header?.period_to || tariffObj?.header?.to)
+  const tariffDates = (tFrom && tTo) ? `(${tFrom} → ${tTo})` : ''
+
   const lines = [
     { concept: 'Cargo fijo', rate: (rates.fixed_charge_q ?? rates.fixedCharge_Q) != null ? `${Number(rates.fixed_charge_q ?? rates.fixedCharge_Q).toFixed(4)} Q` : '-', amount: invoice.fixed_charge_Q || 0 },
     { concept: 'Energía neta', rate: (rates.energy_q_per_kwh ?? rates.energy_Q_per_kWh) != null ? `${Number(rates.energy_q_per_kwh ?? rates.energy_Q_per_kWh).toFixed(6)} Q/kWh` : '-', amount: invoice.energy_charge_Q || 0 },
@@ -111,8 +118,8 @@ export default function InvoiceModal({ open, onClose, row }: Props){
         <div className="flex items-start justify-between">
           <div>
             <h3 id="invoice-title" className="text-base font-semibold">Detalle de Factura</h3>
-            <div className="text-xs text-gray-300">Fecha: {row.date || ''} — Consumo: {row.consumption_kWh ?? '-'} kWh</div>
-            <div className="text-xs text-gray-300">Tarifa: {invoice?.tariff?.id || row.tariffId || 'N/A'}</div>
+            <div className="text-xs text-gray-300">Fecha: {row.date || ''} — Consumo: {typeof row.consumption_kWh === 'number' ? row.consumption_kWh.toFixed(2) : (row.consumption_kWh ?? '-')} kWh</div>
+            <div className="text-xs text-gray-300">Tarifa: {invoice?.tariff?.id || row.tariffId || 'N/A'} <span className="text-gray-400">{tariffDates}</span></div>
           </div>
           <button ref={closeBtnRef} className="glass-button p-2" title="Cerrar" onClick={onClose}><X size={14} /></button>
         </div>
@@ -180,9 +187,9 @@ export default function InvoiceModal({ open, onClose, row }: Props){
             </div>
           </div>
 
-          <div className="mt-3 border-t border-white/10 pt-3 flex justify-end items-center">
-            <div className="text-xs text-gray-300 mr-4">Total</div>
-            <div className="text-base font-semibold">Q {total.toFixed(2)}</div>
+          <div className="mt-4 bg-white/10 p-4 rounded-xl flex justify-between items-center border border-white/20 shadow-lg">
+            <div className="text-sm font-medium text-gray-200">Total a Pagar</div>
+            <div className="text-2xl font-bold text-green-400">Q {total.toFixed(2)}</div>
           </div>
         </div>
 

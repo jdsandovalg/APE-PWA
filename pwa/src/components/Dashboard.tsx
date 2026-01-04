@@ -2,8 +2,8 @@ import React from 'react'
 import { motion } from 'framer-motion'
 import { getAllCompanies, getAllTariffs, getReadings, saveReadings, createPreviousQuartersFromActive, type CompanyRecord, type TariffRecord, type ReadingRecord } from '../services/supabasePure'
 import { getAllMeters, getMeterById, createMeter, updateMeter } from '../services/supabaseBasic'
+import { getEquipmentForMeter, type MeterEquipment } from '../services/equipmentService'
 import MeterModal from './MeterModal'
-import ConfirmModal from './ConfirmModal'
 import InvoiceModal from './InvoiceModal'
 import SeasonalAnalysis from './SeasonalAnalysis'
 import { showToast } from '../services/toast'
@@ -36,6 +36,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
   const [companies, setCompanies] = React.useState<CompanyRecord[]>([])
   const [tariffs, setTariffs] = React.useState<TariffRecord[]>([])
   const [readings, setReadings] = React.useState<ReadingRecord[]>([])
+  const [equipment, setEquipment] = React.useState<MeterEquipment[]>([])
   const [loading, setLoading] = React.useState(true)
   // Pull-to-refresh states (mobile)
   const [touchStartY, setTouchStartY] = React.useState<number | null>(null)
@@ -170,29 +171,34 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
         if (!currentMeter) currentMeter = metersData[0]
         setCurrentMeterId(currentMeter.id)
         setMeterInfo(currentMeter)
-        
-        // Fetch readings specifically for the current meter to ensure we get all relevant data
-        const meterReadings = await getReadings(currentMeter.contador || currentMeter.id)
+
+        // Fetch readings specifically for the current meter
+        const [meterReadings, meterEquipment] = await Promise.all([
+          getReadings(currentMeter.contador || currentMeter.id),
+          getEquipmentForMeter(currentMeter.id)
+        ])
         setReadings(meterReadings)
+        setEquipment(meterEquipment)
 
         console.log('📊 Dashboard data loaded from Supabase:', {
           meters: metersData.length,
           companies: companiesData.length,
           tariffs: tariffsData.length,
           readings: meterReadings.length,
+          equipment: meterEquipment.length,
           currentMeterId: currentMeter.id,
         })
       } else {
         setReadings([])
+        setEquipment([])
       }
     } catch (error) {
       console.error('❌ Error loading dashboard data:', error)
-      showToast('Error cargando datos del dashboard', 'error')
+      showToast('Error cargando datos', 'error')
     } finally {
       setLoading(false)
     }
   }
-
   // Helper functions for calculations
   function computeDeltas(readings: ReadingRecord[]) {
     if (!readings || readings.length < 2) return []
@@ -317,6 +323,37 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
 
     return { consumptionMonth, productionMonth, estimatedBill, lastDelta, latestSaldo, accumulatedSaldo, readingsMissingTariff, activeTariff }
   }, [readings, meterInfo, tariffs])
+
+  // Function to estimate cost for a forecasted kWh amount using current tariff
+  const handleForecastEstimate = (kwh: number) => {
+    const companyParam = meterInfo?.distribuidora || undefined
+    const segmentParam = meterInfo?.tipo_servicio || undefined
+    const dateForTariff = new Date().toISOString() // Use today to get current pricing
+    
+    let tariff = findActiveTariffForDate(dateForTariff, companyParam, segmentParam)
+    
+    // Fallback if no specific tariff found, try generic for company
+    if (!tariff && tariffs.length > 0) {
+       tariff = tariffs.find(t => t.header.company === companyParam) || tariffs[0]
+    }
+
+    if (tariff) {
+      // Use accumulated credits if available (positive accumulatedSaldo)
+      const availableCredits = Math.max(0, accumulatedSaldo)
+      const invoice = computeInvoiceForPeriod(kwh, 0, tariff, { forUnit: 'month', date: dateForTariff, credits_kWh: availableCredits })
+      setSelectedInvoiceRow({
+        date: `Proyección (Tarifa actual)`,
+        consumption_kWh: kwh,
+        production_kWh: 0,
+        tariffId: tariff.header.id,
+        invoice: invoice,
+        tariff: tariff
+      })
+      setShowInvoiceModal(true)
+    } else {
+      showToast('No se encontró tarifa activa para estimar costos', 'error')
+    }
+  }
 
   // Compute chart data (rows and cumulativeRows) for charts
   const { chartRows, cumulativeRows, chartRowsAvg, chartRowsAvgProd } = React.useMemo(() => {
@@ -457,6 +494,23 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
     const trendCurrentCons = monthly[trendCurrentKey]
     const trendLastYearCons = monthly[trendLastYearKey]
 
+    // 3. Calculate Additional Load from Future Equipment
+    // Target date for filtering: First day of target month
+    const targetDateStart = new Date(Date.UTC(targetYear, targetMonth - 1, 1))
+    const targetDateEnd = new Date(Date.UTC(targetYear, targetMonth, 0)) // Last day of target month
+
+    const futureLoad = equipment
+      .filter(eq => {
+        if (!eq.is_future) return false // Only count future/projected equipment
+        const eqStart = new Date(eq.start_date)
+        const eqEnd = eq.end_date ? new Date(eq.end_date) : null
+        
+        // Check if equipment is active during the target month
+        // Logic: Starts before or during month AND (no end date OR ends after month start)
+        return eqStart <= targetDateEnd && (!eqEnd || eqEnd >= targetDateStart)
+      })
+      .reduce((sum, eq) => sum + (Number(eq.energy_kwh_month) || 0), 0)
+
     const result: any = { monthName: targetMonthName, year: targetYear }
 
     // 1. Pronóstico puro (estacional) - Ajustado o Histórico
@@ -466,13 +520,17 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
         const ratio = trendCurrentCons / trendLastYearCons
         const trendPercent = (ratio - 1) * 100
         result.seasonal = {
-          kwh: seasonalityCons * ratio,
+          baseKwh: seasonalityCons * ratio,
+          extraKwh: futureLoad,
+          totalKwh: (seasonalityCons * ratio) + futureLoad,
           label: `Basado en ${seasonalityCons.toFixed(0)} kWh (${targetMonthName} ${targetYear-1}) ajustado ${trendPercent >= 0 ? '+' : ''}${trendPercent.toFixed(1)}%`,
           formula: `${seasonalityCons.toFixed(0)} × (${trendCurrentCons.toFixed(0)} / ${trendLastYearCons.toFixed(0)})`
         }
     } else if (seasonalityCons !== undefined && seasonalityCons > 0) {
         result.seasonal = {
-          kwh: seasonalityCons,
+          baseKwh: seasonalityCons,
+          extraKwh: futureLoad,
+          totalKwh: seasonalityCons + futureLoad,
           label: `Basado en histórico ${targetMonthName} ${targetYear-1}`,
           formula: `${seasonalityCons.toFixed(0)} (Histórico puro)`
         }
@@ -484,7 +542,9 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
     if (recentKeys.length > 0) {
       const sum = recentKeys.reduce((acc, k) => acc + monthly[k], 0)
       result.immediate = {
-        kwh: sum / recentKeys.length,
+        baseKwh: sum / recentKeys.length,
+        extraKwh: futureLoad,
+        totalKwh: (sum / recentKeys.length) + futureLoad,
         label: `Promedio últimos ${recentKeys.length} meses`,
         formula: `(${recentKeys.map(k => monthly[k].toFixed(0)).join('+')}) / ${recentKeys.length}`
       }
@@ -492,7 +552,7 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
 
     if (!result.seasonal && !result.immediate) return null
     return result
-  }, [readings])
+  }, [readings, equipment])
 
   return (
     <section id="dashboard-printable"
@@ -591,16 +651,6 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
         <div className="card">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm text-gray-300">Producción del Mes</h3>
-              <p className="text-2xl mt-2">{(lastDelta ? Number(lastDelta.production).toFixed(2) : productionMonth.toFixed(2))} kWh</p>
-            </div>
-            <TrendingUp className="text-blue-400" size={28} />
-          </div>
-        </div>
-        
-        <div className="card">
-          <div className="flex items-center justify-between">
-            <div>
               <h3 className="text-sm text-gray-300">Valor Ultima Factura</h3>
               <p className="text-2xl mt-2">{currency(estimatedBill)}</p>
               <div className="text-xs text-gray-400 mt-1">
@@ -645,10 +695,22 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                 <div className="bg-black/20 p-3 rounded-lg border border-indigo-500/20 relative overflow-hidden">
                   <div className="text-xs text-indigo-300 font-medium mb-1">Pronóstico puro (estacional)</div>
                   <div className="flex flex-wrap items-baseline gap-x-2">
-                    <p className="text-2xl text-indigo-100 font-semibold">{consumptionForecast.seasonal.kwh.toFixed(0)} <span className="text-sm font-normal text-indigo-300">kWh</span></p>
+                    <p className="text-2xl text-indigo-100 font-semibold">{consumptionForecast.seasonal.totalKwh.toFixed(0)} <span className="text-sm font-normal text-indigo-300">kWh</span></p>
+                    <button 
+                      onClick={() => handleForecastEstimate(consumptionForecast.seasonal.totalKwh)}
+                      className="ml-1 glass-button px-2 py-0.5 text-xs flex items-center gap-1 text-green-400 hover:bg-green-500/10 border border-green-500/30 transition-colors"
+                      title="Ver estimación de costo en Q"
+                    >
+                      <DollarSign size={10} /> Est. Q
+                    </button>
                     <div className="text-xs text-indigo-400/80">
-                      ±10% <span className="font-mono">({(consumptionForecast.seasonal.kwh * 0.9).toFixed(0)} - {(consumptionForecast.seasonal.kwh * 1.1).toFixed(0)})</span>
+                      ±10% <span className="font-mono">({(consumptionForecast.seasonal.totalKwh * 0.9).toFixed(0)} - {(consumptionForecast.seasonal.totalKwh * 1.1).toFixed(0)})</span>
                     </div>
+                  </div>
+                  {/* Desglose de carga futura */}
+                  <div className="mt-1 text-xs flex items-center gap-2">
+                    <span className="text-orange-400 font-medium">Base: {consumptionForecast.seasonal.baseKwh.toFixed(0)}</span>
+                    <span className="text-orange-400 font-medium">+ Equipos: {consumptionForecast.seasonal.extraKwh.toFixed(0)}</span>
                   </div>
                   <div className="text-[10px] text-indigo-300/70 mt-2 leading-tight">
                     {consumptionForecast.seasonal.label}
@@ -664,10 +726,22 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
                 <div className="bg-black/20 p-3 rounded-lg border border-indigo-500/20 relative overflow-hidden">
                   <div className="text-xs text-indigo-300 font-medium mb-1">Base: Pronostico tendencia inmediata</div>
                   <div className="flex flex-wrap items-baseline gap-x-2">
-                    <p className="text-2xl text-indigo-100 font-semibold">{consumptionForecast.immediate.kwh.toFixed(0)} <span className="text-sm font-normal text-indigo-300">kWh</span></p>
+                    <p className="text-2xl text-indigo-100 font-semibold">{consumptionForecast.immediate.totalKwh.toFixed(0)} <span className="text-sm font-normal text-indigo-300">kWh</span></p>
+                    <button 
+                      onClick={() => handleForecastEstimate(consumptionForecast.immediate.totalKwh)}
+                      className="ml-1 glass-button px-2 py-0.5 text-xs flex items-center gap-1 text-green-400 hover:bg-green-500/10 border border-green-500/30 transition-colors"
+                      title="Ver estimación de costo en Q"
+                    >
+                      <DollarSign size={10} /> Est. Q
+                    </button>
                     <div className="text-xs text-indigo-400/80">
-                      ±10% <span className="font-mono">({(consumptionForecast.immediate.kwh * 0.9).toFixed(0)} - {(consumptionForecast.immediate.kwh * 1.1).toFixed(0)})</span>
+                      ±10% <span className="font-mono">({(consumptionForecast.immediate.totalKwh * 0.9).toFixed(0)} - {(consumptionForecast.immediate.totalKwh * 1.1).toFixed(0)})</span>
                     </div>
+                  </div>
+                  {/* Desglose de carga futura */}
+                  <div className="mt-1 text-xs flex items-center gap-2">
+                    <span className="text-orange-400 font-medium">Base: {consumptionForecast.immediate.baseKwh.toFixed(0)}</span>
+                    <span className="text-orange-400 font-medium">+ Equipos: {consumptionForecast.immediate.extraKwh.toFixed(0)}</span>
                   </div>
                   <div className="text-[10px] text-indigo-300/70 mt-2 leading-tight">
                     {consumptionForecast.immediate.label}

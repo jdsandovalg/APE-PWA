@@ -1,6 +1,6 @@
 # Bitácora de Desarrollo - AutoProductor Energía
 
-## 📋 Pendientes (To-Do)
+## 📋 Pendientes (To-Do) 
 
 1.  **Implementar Edición de Lecturas (`AddReadingModal.tsx`)**
     *   **Estado:** ✅ **COMPLETADO**. Se implementó `updateReading` con `upsert` en `readingsService.ts` y se integró en el modal.
