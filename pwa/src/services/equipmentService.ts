@@ -26,6 +26,10 @@ export interface MeterEquipment {
   notes?: string | null
   created_at: string // timestamptz
   updated_at: string // timestamptz
+  equipment_types: {
+    code: string
+    load_category: string
+  } | null
 }
 
 // Type for the grouped response
@@ -144,7 +148,7 @@ export async function getEquipmentForMeter(meterId: string): Promise<MeterEquipm
 
   const { data, error } = await supabase
     .from('meter_equipment')
-    .select('*') // Select all columns
+    .select('*, equipment_types(code, load_category)')
     .eq('meter_id', meterId)
     .order('start_date', { ascending: false })
 

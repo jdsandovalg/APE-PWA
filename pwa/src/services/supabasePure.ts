@@ -563,7 +563,7 @@ export async function createPreviousQuartersFromActive(count: number, company?: 
         currency: srcHeader.currency || 'GTQ',
         sourcePdf: 'auto-copied-backward'
       },
-      rates: { ...srcRates, notes: `Auto-copied from ${srcHeader.id} for ${target.year}Q${target.quarter}` }
+      rates: { ...srcRates, notes: `Generado automáticamente para ${target.year}Q${target.quarter}. Fuente: ${srcHeader.id}` }
     }
     try {
       await createTariff(newTariff)

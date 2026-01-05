@@ -385,38 +385,78 @@ export default function Dashboard({ onNavigate }: { onNavigate: (view: string) =
         return eqStart <= targetDateEnd && (!eqEnd || eqEnd >= targetDateStart)
       })
       .map(eq => ({
-        name: eq.equipment_name,
-        watts: eq.power_watts,
-        hours: eq.estimated_daily_hours,
+        equipment_name: eq.equipment_name,
+        power_watts: eq.power_watts,
+        estimated_daily_hours: eq.estimated_daily_hours,
         kwh_month: eq.energy_kwh_month,
         start_date: eq.start_date,
-        end_date: eq.end_date
+        end_date: eq.end_date,
+        equipment_type: eq.equipment_types?.code,
+        load_category: eq.equipment_types?.load_category,
+        calculation_method: "ESTIMATED",
       }))
 
     // Helper to generate full data for a scenario
-    const generateScenarioData = (forecastItem: any) => {
+    const generateScenarioData = (forecastItem: any, type: 'SEASONAL' | 'IMMEDIATE' | 'HYBRID') => {
       if (!forecastItem) return null
       let invoice = null
       if (tariff) {
         invoice = computeInvoiceForPeriod(forecastItem.totalKwh, 0, tariff, { forUnit: 'month', date: dateForTariff, credits_kWh: availableCredits })
       }
+
+      const creditsUsed = Math.min(availableCredits, forecastItem.baseKwh) // Credits apply to base consumption
+
       return {
         ...forecastItem,
+        forecastType: type,
+        source: "CALCULATED",
         estimatedInvoice: invoice ? {
             total_Q: invoice.total_due_Q,
+            creditsApplied: {
+              available_kWh: availableCredits,
+              used_kWh: creditsUsed,
+              remaining_kWh: availableCredits - creditsUsed,
+              applies_to: "ENERGY_ONLY"
+            },
             details: invoice
         } : 'No tariff found',
-        tariffApplied: tariff ? { ...tariff.header, rates: tariff.rates } : null
+        tariffApplied: tariff ? { ...tariff.header, rates: tariff.rates } : null,
+      }
+    }
+
+    // Calculate hybrid scenario
+    const seasonalData = consumptionForecast.seasonal
+    const immediateData = consumptionForecast.immediate
+    let hybridData = null
+    if (seasonalData && immediateData) {
+      hybridData = {
+        formula: "0.7 * seasonal + 0.3 * immediate",
+        baseKwh: seasonalData.baseKwh * 0.7 + immediateData.baseKwh * 0.3,
+        extraKwh: seasonalData.extraKwh, // extraKwh is the same for all scenarios
+        totalKwh: (seasonalData.baseKwh * 0.7 + immediateData.baseKwh * 0.3) + seasonalData.extraKwh,
       }
     }
 
     const exportData = {
-      context: { month: consumptionForecast.monthName, year: consumptionForecast.year, meter: meterInfo?.contador, accumulatedCreditAvailable: availableCredits },
+      modelVersion: "v1.0",
+      forecastAssumptions: {
+        extraEquipmentTreatedAsIncremental: true,
+        creditsAppliedTo: "baseConsumptionOnly"
+      },
+      context: {
+        month: consumptionForecast.monthName,
+        year: consumptionForecast.year,
+        meter: meterInfo?.contador,
+        accumulatedCreditAvailable: availableCredits,
+        credit_unit: "kWh",
+        credit_applicable_to: "ENERGY_ONLY"
+      },
       readingsHistory: readings,
       deltasHistory: chartRows,
       contributingEquipment,
-      seasonal: generateScenarioData(consumptionForecast.seasonal),
-      immediate: generateScenarioData(consumptionForecast.immediate)
+      seasonal: generateScenarioData(consumptionForecast.seasonal, 'SEASONAL'),
+      immediate: generateScenarioData(consumptionForecast.immediate, 'IMMEDIATE'),
+      hybrid: hybridData ? generateScenarioData(hybridData, 'HYBRID') : null,
     }
 
     try {
