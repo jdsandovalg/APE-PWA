@@ -7,6 +7,10 @@ export default defineConfig({
   server: { port: 5173 },
   build: {
     rollupOptions: {
+      onwarn(warning, warn) {
+        if (warning.code === 'EVAL' && warning.id?.includes('pdfjs-dist')) return
+        warn(warning)
+      },
       output: {
         manualChunks(id) {
           if (!id) return
