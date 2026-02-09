@@ -36,7 +36,7 @@ export default function Equipment({ meterId, onBack }: EquipmentProps) {
   const handleSave = async (data: Partial<MeterEquipment>) => {
     try {
       // IMPORTANTE: Eliminamos campos generados/sistema para evitar errores de Supabase
-      const { energy_kwh_month, created_at, updated_at, id, ...cleanData } = data as any
+      const { energy_kwh_month, created_at, updated_at, id, equipment_types, ...cleanData } = data as any
 
       if (editingItem) {
         // Update
