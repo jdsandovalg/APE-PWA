@@ -7,7 +7,11 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables')
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+  db: {
+    schema: 'energia'
+  }
+})
 
 // ==========================================
 // FUNCIONES BÁSICAS DE COMPANIES (SOLO ONLINE)
