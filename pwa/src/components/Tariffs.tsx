@@ -122,25 +122,29 @@ export default function Tariffs(){
      }
    }
 
-   // Aplicar la copia de tarifa (sin validación, se usa después de confirmar o si no hay colisiones)
-   function applyCopy(){
-     if (!pendingCopyTariff) return
-     setModalForm({
-       ...modalForm,
-       header: {
-         ...modalForm.header,
-         id: pendingCopyTariff.newId,
-         period: {
-           from: pendingCopyTariff.newFrom,
-           to: pendingCopyTariff.newTo
-         }
-       },
-       rates: { ...modalForm.rates, ...pendingCopyTariff.rates }
-     })
-     setPendingCopyTariff(null)
-     setShowCopyConfirm(false)
-     showToast(`Valores copiados desde tarifa ${pendingCopyTariff.sourceId}. Periodo actualizado.`, 'success')
-   }
+    // Aplicar la copia de tarifa (sin validación, se usa después de confirmar o si no hay colisiones)
+    function applyCopy(){
+      console.log('applyCopy called with pendingCopyTariff:', pendingCopyTariff)
+      if (!pendingCopyTariff) {
+        console.warn('applyCopy: no pendingCopyTariff')
+        return
+      }
+      setModalForm({
+        ...modalForm,
+        header: {
+          ...modalForm.header,
+          id: pendingCopyTariff.newId,
+          period: {
+            from: pendingCopyTariff.newFrom,
+            to: pendingCopyTariff.newTo
+          }
+        },
+        rates: { ...modalForm.rates, ...pendingCopyTariff.rates }
+      })
+      setPendingCopyTariff(null)
+      setShowCopyConfirm(false)
+      showToast(`Valores copiados desde tarifa ${pendingCopyTariff.sourceId}. Periodo actualizado.`, 'success')
+    }
 
   function updateSelected(partial: Partial<any>){
     if (selectedIdx === null) return
@@ -320,11 +324,14 @@ export default function Tariffs(){
                 <h4 className="font-medium text-sm">Detalles de tarifas (Q / %)</h4>
                 <div>
                    <button className="glass-button text-xs p-1 mr-2" title="Copiar tarifa del último trimestre" onClick={()=>{
+                     console.log('Botón copiar clicked')
                      // find most recent tariff for same company+segment, or global most recent
                      try{
                        const company = modalForm.header?.company
                        const segment = modalForm.header?.segment
+                       console.log('Buscando tarifa para company:', company, 'segment:', segment)
                        const candidates = items.filter(it => it.header && it.rates)
+                       console.log('Candidatos encontrados:', candidates.length)
                        // sort by effective date or period.from descending
                        const sorted = candidates.slice().sort((a,b)=>{
                          const aDate = new Date(a.header?.period?.from || a.header?.effective_at || 0).getTime()
@@ -343,17 +350,17 @@ export default function Tariffs(){
                        const newTo = new Date(newFrom.getFullYear(), newFrom.getMonth() + 3, 0)
                        const newId = makeId(company, segment, newFrom.toISOString().slice(0,10), newTo.toISOString().slice(0,10))
 
-                       // Detectar colisiones: tarifas de misma empresa+segmento que se solapen con [newFrom, newTo]
+                       // Detectar colisiones
                        const collisions = items.filter(it => {
                          const itFrom = new Date(it.header?.period?.from || 0)
                          const itTo = new Date(it.header?.period?.to || 0)
-                         // Solapamiento: (newFrom <= itTo) AND (newTo >= itFrom)
                          return it.header?.company === company &&
                                 it.header?.segment === segment &&
                                 newFrom <= itTo && newTo >= itFrom
                        })
+                       console.log('Colisiones detectadas:', collisions.length)
 
-                       // Guardar datos pendientes de confirmación
+                       // Guardar datos pendientes
                        setPendingCopyTariff({
                          rates,
                          newFrom: newFrom.toISOString().slice(0,10),
@@ -365,11 +372,11 @@ export default function Tariffs(){
                        })
 
                        if (collisions.length > 0) {
-                         // Hay solapamientos → pedir confirmación
+                         console.log('Mostrando modal de confirmación')
                          setShowCopyConfirm(true)
                        } else {
-                         // No hay conflicto → copiar directamente
-                       applyCopy()
+                         console.log('Sin colisiones, aplicando copia directa')
+                         applyCopy()
                        }
                      }catch(err){ console.error('Error copiando tarifa:', err); try{ showToast('Error al copiar tarifa','error') }catch(e){} }
                    }}>Copiar tarifa último trimestre</button>

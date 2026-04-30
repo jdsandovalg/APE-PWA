@@ -1,15 +1,15 @@
 import React from 'react'
 import { X, Check } from 'lucide-react'
 
-type Props = {
-  open: boolean,
-  title?: string,
-  message: string,
-  onCancel: ()=>void,
-  onConfirm: ()=>void,
-  confirmText?: string,
-  cancelText?: string
-}
+ type Props = {
+   open: boolean,
+   title?: string,
+   message: React.ReactNode,  // ← Ahora acepta string o JSX
+   onCancel: ()=>void,
+   onConfirm: ()=>void,
+   confirmText?: string,
+   cancelText?: string
+ }
 
 export default function ConfirmModal({ open, title, message, onCancel, onConfirm, confirmText='Aceptar', cancelText='Cancelar' }: Props){
   React.useEffect(()=>{
