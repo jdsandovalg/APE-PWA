@@ -249,28 +249,51 @@ export default function Tariffs(){
               <div className="flex items-center justify-between">
                 <h4 className="font-medium text-sm">Detalles de tarifas (Q / %)</h4>
                 <div>
-                  <button className="glass-button text-xs p-1 mr-2" title="Copiar tarifa del último trimestre" onClick={()=>{
-                    // find most recent tariff for same company+segment, or global most recent
-                    try{
-                      const company = modalForm.header?.company
-                      const segment = modalForm.header?.segment
-                      const candidates = items.filter(it => it.header && it.rates)
-                      // sort by effective date or period.from descending
-                      const sorted = candidates.slice().sort((a,b)=>{
-                        const aDate = new Date(a.header?.period?.from || a.header?.effective_at || 0).getTime()
-                        const bDate = new Date(b.header?.period?.from || b.header?.effective_at || 0).getTime()
-                        return bDate - aDate
-                      })
-                      let found = sorted.find(s => s.header?.company === company && s.header?.segment === segment)
-                      if (!found) found = sorted[0]
-                      if (!found) { try{ showToast('No se encontró tarifa previa para copiar','error') }catch(e){}; return }
+                   <button className="glass-button text-xs p-1 mr-2" title="Copiar tarifa del último trimestre" onClick={()=>{
+                     // find most recent tariff for same company+segment, or global most recent
+                     try{
+                       const company = modalForm.header?.company
+                       const segment = modalForm.header?.segment
+                       const candidates = items.filter(it => it.header && it.rates)
+                       // sort by effective date or period.from descending
+                       const sorted = candidates.slice().sort((a,b)=>{
+                         const aDate = new Date(a.header?.period?.from || a.header?.effective_at || 0).getTime()
+                         const bDate = new Date(b.header?.period?.from || b.header?.effective_at || 0).getTime()
+                         return bDate - aDate
+                       })
+                       let found = sorted.find(s => s.header?.company === company && s.header?.segment === segment)
+                       if (!found) found = sorted[0]
+                       if (!found) { try{ showToast('No se encontró tarifa previa para copiar','error') }catch(e){}; return }
 
-                      // copy rates into modalForm.rates (do not overwrite header.period or id)
-                      const rates = found.rates || found.rates || {}
-                      setModalForm({ ...modalForm, rates: { ...modalForm.rates, ...rates } })
-                      try{ showToast('Valores copiados desde la última tarifa: '+(found.header?.id||''),'success') }catch(e){}
-                    }catch(err){ console.error('Error copiando tarifa:', err); try{ showToast('Error al copiar tarifa','error') }catch(e){} }
-                  }}>Copiar tarifa último trimestre</button>
+                       // copy rates into modalForm.rates
+                       const rates = found.rates || found.rates || {}
+                       
+                       // Calculate new period dates: from = day after previous to, to = last day of 3rd month
+                       const prevTo = new Date(found.header?.period?.to || found.header?.effective_at || '')
+                       const newFrom = new Date(prevTo)
+                       newFrom.setDate(newFrom.getDate() + 1)
+                       
+                       // Calculate new To: last day of the month 2 months after newFrom (trimestre = 3 meses)
+                       const newTo = new Date(newFrom.getFullYear(), newFrom.getMonth() + 3, 0) // day 0 of month+3 = last day of previous month
+
+                       // Generate new ID based on new period
+                       const newId = makeId(company, segment, newFrom.toISOString().slice(0,10), newTo.toISOString().slice(0,10))
+
+                       setModalForm({
+                         ...modalForm,
+                         header: {
+                           ...modalForm.header,
+                           id: newId,
+                           period: {
+                             from: newFrom.toISOString().slice(0,10),
+                             to: newTo.toISOString().slice(0,10)
+                           }
+                         },
+                         rates: { ...modalForm.rates, ...rates }
+                       })
+                       try{ showToast('Valores copiados desde la última tarifa: '+(found.header?.id||'')+'. Periodo actualizado.','success') }catch(e){}
+                     }catch(err){ console.error('Error copiando tarifa:', err); try{ showToast('Error al copiar tarifa','error') }catch(e){} }
+                   }}>Copiar tarifa último trimestre</button>
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-2 mt-2">
