@@ -201,11 +201,11 @@ export default function Tariffs(){
                   onClick={() => { setFilterText(''); setFilterCompany('') }}
                 >
                   Limpiar
-                </button>
-              )}
-            </div>
+                 </button>
+               )}
+             </div>
 
-            {/* Lista filtrada */}
+             {/* Lista de tarifas filtrada y ordenada */}
             {(() => {
               let filtered = items.filter(it => {
                 const txt = filterText.toLowerCase()
@@ -225,53 +225,36 @@ export default function Tariffs(){
               })
 
               if (filtered.length === 0) {
-                return <div className="text-sm text-gray-400">No se encontraron tarifas con ese filtro.</div>
+                return <div key="empty" className="text-sm text-gray-400">No se encontraron tarifas con ese filtro.</div>
               }
 
-              return filtered.map((it, idx) => (
-                <div key={it.header.id} className={`p-3 rounded border w-full ${selectedIdx===idx ? 'border-blue-400 bg-white/5':'border-transparent hover:border-gray-700'}`}>
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <div className="font-medium">{it.header.company} — {it.header.segment}</div>
-                      <div className="text-xs text-gray-400">{it.header.period.from} → {it.header.period.to}</div>
-                      <div className="mt-1 text-xs">
-                        <div className="grid grid-cols-2 gap-1">
-                          <span>Fijo: Q {it.rates.fixedCharge_Q?.toFixed(2) || '0.00'}</span>
-                          <span>Energía: Q {it.rates.energy_Q_per_kWh?.toFixed(4) || '0.0000'}/kWh</span>
-                          <span>Dist: Q {it.rates.distribution_Q_per_kWh?.toFixed(4) || '0.0000'}/kWh</span>
-                          <span>IVA: {it.rates.iva_percent || 0}%</span>
+              return filtered.map((it, idx) => {
+                // Buscar el índice original en items para mantener selección
+                const originalIdx = items.findIndex(item => item.header.id === it.header.id)
+                return (
+                  <div key={it.header.id} className={`p-3 rounded border w-full ${selectedIdx===originalIdx? 'border-blue-400 bg-white/5':'border-transparent hover:border-gray-700'}`}>
+                    <div className="flex justify-between items-start">
+                      <div className="flex-1">
+                        <div className="font-medium">{it.header.company} — {it.header.segment}</div>
+                        <div className="text-xs text-gray-400">{it.header.period.from} → {it.header.period.to}</div>
+                        <div className="mt-1 text-xs">
+                          <div className="grid grid-cols-2 gap-1">
+                            <span>Fijo: Q {it.rates.fixedCharge_Q?.toFixed(2) || '0.00'}</span>
+                            <span>Energía: Q {it.rates.energy_Q_per_kWh?.toFixed(4) || '0.0000'}/kWh</span>
+                            <span>Dist: Q {it.rates.distribution_Q_per_kWh?.toFixed(4) || '0.0000'}/kWh</span>
+                            <span>IVA: {it.rates.iva_percent || 0}%</span>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2 ml-2">
-                      <button title="Editar" className="btn-ghost" onClick={()=>{ setSelectedIdx(idx); setModalForm(items.find((_:any,i:number)=>i===idx)); setShowEditModal(true) }}><Edit size={16} /></button>
-                      <button aria-label={`Eliminar tarifa ${it.header.id}`} className="btn-ghost text-red-400 flex items-center justify-center p-1" onClick={()=>requestRemoveAt(idx)} title="Eliminar"><Trash size={14} /></button>
-                    </div>
-                  </div>
-                </div>
-              ))
-            })()}
-              <div key={it.header.id} className={`p-3 rounded border w-full ${selectedIdx===idx? 'border-blue-400 bg-white/5':'border-transparent hover:border-gray-700'}`}>
-                <div className="flex justify-between items-start">
-                  <div className="flex-1">
-                    <div className="font-medium">{it.header.company} — {it.header.segment}</div>
-                    <div className="text-xs text-gray-400">{it.header.period.from} → {it.header.period.to}</div>
-                    <div className="mt-1 text-xs">
-                      <div className="grid grid-cols-2 gap-1">
-                        <span>Fijo: Q {it.rates.fixedCharge_Q?.toFixed(2) || '0.00'}</span>
-                        <span>Energía: Q {it.rates.energy_Q_per_kWh?.toFixed(4) || '0.0000'}/kWh</span>
-                        <span>Dist: Q {it.rates.distribution_Q_per_kWh?.toFixed(4) || '0.0000'}/kWh</span>
-                        <span>IVA: {it.rates.iva_percent || 0}%</span>
+                      <div className="flex items-center gap-2 ml-2">
+                        <button title="Editar" className="btn-ghost" onClick={()=>{ setSelectedIdx(originalIdx); setModalForm(items[originalIdx]); setShowEditModal(true) }}><Edit size={16} /></button>
+                        <button aria-label={`Eliminar tarifa ${it.header.id}`} className="btn-ghost text-red-400 flex items-center justify-center p-1" onClick={()=>requestRemoveAt(originalIdx)} title="Eliminar"><Trash size={14} /></button>
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 ml-2">
-                    <button title="Editar" className="btn-ghost" onClick={()=>{ setSelectedIdx(idx); setModalForm(items[idx]); setShowEditModal(true) }}><Edit size={16} /></button>
-                    <button aria-label={`Eliminar tarifa ${it.header.id}`} className="btn-ghost text-red-400 flex items-center justify-center p-1" onClick={()=>requestRemoveAt(idx)} title="Eliminar"><Trash size={14} /></button>
-                  </div>
-                </div>
-              </div>
-            ))}
+                )
+              })
+            })()}
           </div>
         </div>
 
