@@ -150,24 +150,8 @@ export default function Tariffs(){
       setShowCopyConfirm(false)
       showToast(`Valores copiados desde tarifa ${copyData.sourceId}. Periodo actualizado.`, 'success')
     }
-      setModalForm({
-        ...modalForm,
-        header: {
-          ...modalForm.header,
-          id: pendingCopyTariff.newId,
-          period: {
-            from: pendingCopyTariff.newFrom,
-            to: pendingCopyTariff.newTo
-          }
-        },
-        rates: { ...modalForm.rates, ...pendingCopyTariff.rates }
-      })
-      setPendingCopyTariff(null)
-      setShowCopyConfirm(false)
-      showToast(`Valores copiados desde tarifa ${pendingCopyTariff.sourceId}. Periodo actualizado.`, 'success')
-    }
 
-  function updateSelected(partial: Partial<any>){
+   function updateSelected(partial: Partial<any>){
     if (selectedIdx === null) return
     const next = items.map((it,idx)=> idx===selectedIdx ? { ...it, ...partial, header: { ...it.header, ...(partial.header||{}) }, rates: { ...it.rates, ...(partial.rates||{}) } } : it)
     setItems(next)
