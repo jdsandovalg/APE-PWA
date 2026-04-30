@@ -337,23 +337,27 @@ export default function Tariffs(){
                        console.log('Buscando tarifa para company:', company, 'segment:', segment)
                        const candidates = items.filter(it => it.header && it.rates)
                        console.log('Candidatos encontrados:', candidates.length)
-                       // sort by effective date or period.from descending
+                       // sort by effective_at or period_to descending (most recent first)
                        const sorted = candidates.slice().sort((a,b)=>{
-                         const aDate = new Date(a.header?.period?.from || a.header?.effective_at || 0).getTime()
-                         const bDate = new Date(b.header?.period?.from || b.header?.effective_at || 0).getTime()
+                         const aDate = new Date(a.header?.effective_at || a.header?.period?.to || 0).getTime()
+                         const bDate = new Date(b.header?.effective_at || b.header?.period?.to || 0).getTime()
                          return bDate - aDate
                        })
                        let found = sorted.find(s => s.header?.company === company && s.header?.segment === segment)
                        if (!found) found = sorted[0]
                        if (!found) { try{ showToast('No se encontró tarifa previa para copiar','error') }catch(e){}; return }
+                       console.log('Tarifa fuente seleccionada:', found.header.id, '| periodo:', found.header.period?.from, '-', found.header.period?.to)
 
-                       // Calcular nuevo periodo
+                       // Calcular nuevo periodo: newFrom = día después del to de la fuente; newTo = último día del 3er mes
                        const rates = found.rates || found.rates || {}
                        const prevTo = new Date(found.header?.period?.to || found.header?.effective_at || '')
-                       const newFrom = new Date(prevTo)
-                       newFrom.setDate(newFrom.getDate() + 1)
+                       // Asegurar que newFrom sea el primer día del mes siguiente
+                       const newFrom = new Date(prevTo.getFullYear(), prevTo.getMonth() + 1, 1)
+                       // newTo: último día del mes que está 3 meses después de newFrom
                        const newTo = new Date(newFrom.getFullYear(), newFrom.getMonth() + 3, 0)
                        const newId = makeId(company, segment, newFrom.toISOString().slice(0,10), newTo.toISOString().slice(0,10))
+
+                       console.log('Calculado: prevTo=', prevTo.toISOString(), 'newFrom=', newFrom.toISOString(), 'newTo=', newTo.toISOString())
 
                        // Detectar colisiones
                        const collisions = items.filter(it => {
