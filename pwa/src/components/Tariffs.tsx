@@ -128,13 +128,28 @@ export default function Tariffs(){
      }
    }
 
-    // Aplicar la copia de tarifa (sin validación, se usa después de confirmar o si no hay colisiones)
-    function applyCopy(){
-      console.log('applyCopy called with pendingCopyTariff:', pendingCopyTariff)
-      if (!pendingCopyTariff) {
-        console.warn('applyCopy: no pendingCopyTariff')
-        return
-      }
+    // Aplicar la copia de tarifa (recibe datos calculados)
+    function applyCopy(copyData: { rates: any; newFrom: string; newTo: string; newId: string; sourceId: string }) {
+      console.log('applyCopy called with copyData:', copyData)
+      setModalForm(prev => {
+        if (!prev) return prev
+        return {
+          ...prev,
+          header: {
+            ...prev.header,
+            id: copyData.newId,
+            period: {
+              from: copyData.newFrom,
+              to: copyData.newTo
+            }
+          },
+          rates: { ...prev.rates, ...copyData.rates }
+        }
+      })
+      setPendingCopyTariff(null)
+      setShowCopyConfirm(false)
+      showToast(`Valores copiados desde tarifa ${copyData.sourceId}. Periodo actualizado.`, 'success')
+    }
       setModalForm({
         ...modalForm,
         header: {
@@ -366,8 +381,8 @@ export default function Tariffs(){
                        })
                        console.log('Colisiones detectadas:', collisions.length)
 
-                       // Guardar datos pendientes
-                       setPendingCopyTariff({
+                       // Datos de la copia (para aplicar o confirmar)
+                       const copyData = {
                          rates,
                          newFrom: newFrom.toISOString().slice(0,10),
                          newTo: newTo.toISOString().slice(0,10),
@@ -375,14 +390,15 @@ export default function Tariffs(){
                          company,
                          segment,
                          sourceId: found.header?.id
-                       })
+                       }
 
                        if (collisions.length > 0) {
                          console.log('Mostrando modal de confirmación')
+                         setPendingCopyTariff(copyData)
                          setShowCopyConfirm(true)
                        } else {
                          console.log('Sin colisiones, aplicando copia directa')
-                         applyCopy()
+                         applyCopy(copyData)
                        }
                      }catch(err){ console.error('Error copiando tarifa:', err); try{ showToast('Error al copiar tarifa','error') }catch(e){} }
                    }}>Copiar tarifa último trimestre</button>
@@ -471,26 +487,26 @@ export default function Tariffs(){
          />
        )}
 
-       {/* Modal de confirmación para copiar tarifa con colisiones */}
-       {showCopyConfirm && pendingCopyTariff && (
-         <ConfirmModal
-           open={showCopyConfirm}
-           title="Confirmar copia de tarifa"
-           message={
-             <span>
-               La nueva tarifa para <strong>{pendingCopyTariff.company} — {pendingCopyTariff.segment}</strong> 
-               con periodo <strong>{pendingCopyTariff.newFrom}</strong> al <strong>{pendingCopyTariff.newTo}</strong> 
-               se solapa con una o más tarifas existentes.<br/><br/>
-               ¿Desea crear la tarifa de todas formas?<br/>
-               <small className="text-gray-400">Fuente: {pendingCopyTariff.sourceId}</small>
-             </span>
-           }
-           onCancel={()=>{ setShowCopyConfirm(false); setPendingCopyTariff(null) }}
-           onConfirm={applyCopy}
-           confirmText="Copiar de todas formas"
-           cancelText="Cancelar"
-         />
-       )}
+        {/* Modal de confirmación para copiar tarifa con colisiones */}
+        {showCopyConfirm && pendingCopyTariff && (
+          <ConfirmModal
+            open={showCopyConfirm}
+            title="Confirmar copia de tarifa"
+            message={
+              <span>
+                La nueva tarifa para <strong>{pendingCopyTariff.company} — {pendingCopyTariff.segment}</strong>
+                con periodo <strong>{pendingCopyTariff.newFrom}</strong> al <strong>{pendingCopyTariff.newTo}</strong>
+                se solapa con una o más tarifas existentes.<br/><br/>
+                ¿Desea crear la tarifa de todas formas?<br/>
+                <small className="text-gray-400">Fuente: {pendingCopyTariff.sourceId}</small>
+              </span>
+            }
+            onCancel={()=>{ setShowCopyConfirm(false); setPendingCopyTariff(null) }}
+            onConfirm={() => applyCopy(pendingCopyTariff)}
+            confirmText="Copiar de todas formas"
+            cancelText="Cancelar"
+          />
+        )}
     </>
   )
 }
