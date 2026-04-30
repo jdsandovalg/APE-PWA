@@ -24,6 +24,8 @@ export default function Tariffs(){
   const [modalForm, setModalForm] = useState<any | null>(null)
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null)
+  const [filterText, setFilterText] = useState('')        // ← Filtro de búsqueda
+  const [filterCompany, setFilterCompany] = useState('') // Filtro por empresa
 
   // when nothing selected, let the list occupy the full grid width (avoid cramped layout)
   const leftCardSpan = selectedIdx === null ? 'md:col-span-3' : 'md:col-span-1'
@@ -174,8 +176,81 @@ export default function Tariffs(){
             </div>
           </div>
           <div className="mt-4 space-y-2">
-            {items.length===0 && <div className="text-sm text-gray-400">No hay tarifas registradas.</div>}
-            {items.map((it,idx)=> (
+            {/* Filtros de búsqueda */}
+            <div className="flex flex-col sm:flex-row gap-2 mb-3">
+              <input
+                type="text"
+                placeholder="Buscar por empresa, segmento o ID..."
+                value={filterText}
+                onChange={e => setFilterText(e.target.value)}
+                className="flex-1 p-2 rounded bg-transparent border border-gray-700 text-sm focus:border-blue-400 focus:outline-none"
+              />
+              <select
+                value={filterCompany}
+                onChange={e => setFilterCompany(e.target.value)}
+                className="p-2 rounded bg-transparent border border-gray-700 text-sm focus:border-blue-400 focus:outline-none"
+              >
+                <option value="">Todas las empresas</option>
+                {companies.map(c => (
+                  <option key={c.id} value={c.id}>{c.name}</option>
+                ))}
+              </select>
+              {(filterText || filterCompany) && (
+                <button
+                  className="px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-xs"
+                  onClick={() => { setFilterText(''); setFilterCompany('') }}
+                >
+                  Limpiar
+                </button>
+              )}
+            </div>
+
+            {/* Lista filtrada */}
+            {(() => {
+              let filtered = items.filter(it => {
+                const txt = filterText.toLowerCase()
+                const matchText = !txt ||
+                  (it.header?.company || '').toLowerCase().includes(txt) ||
+                  (it.header?.segment || '').toLowerCase().includes(txt) ||
+                  (it.header?.id || '').toLowerCase().includes(txt)
+                const matchCompany = !filterCompany || it.header?.company === filterCompany
+                return matchText && matchCompany
+              })
+
+              // Ordenar por periodo desde más reciente
+              filtered.sort((a, b) => {
+                const aDate = new Date(a.header?.period?.from || a.header?.effective_at || 0).getTime()
+                const bDate = new Date(b.header?.period?.from || b.header?.effective_at || 0).getTime()
+                return bDate - aDate
+              })
+
+              if (filtered.length === 0) {
+                return <div className="text-sm text-gray-400">No se encontraron tarifas con ese filtro.</div>
+              }
+
+              return filtered.map((it, idx) => (
+                <div key={it.header.id} className={`p-3 rounded border w-full ${selectedIdx===idx ? 'border-blue-400 bg-white/5':'border-transparent hover:border-gray-700'}`}>
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <div className="font-medium">{it.header.company} — {it.header.segment}</div>
+                      <div className="text-xs text-gray-400">{it.header.period.from} → {it.header.period.to}</div>
+                      <div className="mt-1 text-xs">
+                        <div className="grid grid-cols-2 gap-1">
+                          <span>Fijo: Q {it.rates.fixedCharge_Q?.toFixed(2) || '0.00'}</span>
+                          <span>Energía: Q {it.rates.energy_Q_per_kWh?.toFixed(4) || '0.0000'}/kWh</span>
+                          <span>Dist: Q {it.rates.distribution_Q_per_kWh?.toFixed(4) || '0.0000'}/kWh</span>
+                          <span>IVA: {it.rates.iva_percent || 0}%</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2 ml-2">
+                      <button title="Editar" className="btn-ghost" onClick={()=>{ setSelectedIdx(idx); setModalForm(items.find((_:any,i:number)=>i===idx)); setShowEditModal(true) }}><Edit size={16} /></button>
+                      <button aria-label={`Eliminar tarifa ${it.header.id}`} className="btn-ghost text-red-400 flex items-center justify-center p-1" onClick={()=>requestRemoveAt(idx)} title="Eliminar"><Trash size={14} /></button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            })()}
               <div key={it.header.id} className={`p-3 rounded border w-full ${selectedIdx===idx? 'border-blue-400 bg-white/5':'border-transparent hover:border-gray-700'}`}>
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
