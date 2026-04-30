@@ -29,8 +29,29 @@ export default function Tariffs(){
    const [pendingCopyTariff, setPendingCopyTariff] = useState<any>(null) // ← datos de tarifa a copiar (pendiente de confirmación)
    const [showCopyConfirm, setShowCopyConfirm] = useState(false) // ← modal de confirmación para copia
 
-  // when nothing selected, let the list occupy the full grid width (avoid cramped layout)
-  const leftCardSpan = selectedIdx === null ? 'md:col-span-3' : 'md:col-span-1'
+   const leftCardSpan = selectedIdx === null ? 'md:col-span-3' : 'md:col-span-1'
+
+   // Computar lista filtrada y ordenada (reactivo a filterText, filterCompany, items)
+   const filteredItems = React.useMemo(() => {
+     let filtered = items.filter(it => {
+       const txt = filterText.toLowerCase()
+       const matchText = !txt ||
+         (it.header?.company || '').toLowerCase().includes(txt) ||
+         (it.header?.segment || '').toLowerCase().includes(txt) ||
+         (it.header?.id || '').toLowerCase().includes(txt)
+       const matchCompany = !filterCompany || it.header?.company === filterCompany
+       return matchText && matchCompany
+     })
+
+     // Ordenar por periodo desde más reciente
+     filtered.sort((a, b) => {
+       const aDate = new Date(a.header?.period?.from || a.header?.effective_at || 0).getTime()
+       const bDate = new Date(b.header?.period?.from || b.header?.effective_at || 0).getTime()
+       return bDate - aDate
+     })
+
+     return filtered
+   }, [items, filterText, filterCompany])
 
   useEffect(() => {
     loadData()
@@ -225,32 +246,13 @@ export default function Tariffs(){
                   Limpiar
                  </button>
                )}
-             </div>
+            </div>
 
-             {/* Lista de tarifas filtrada y ordenada */}
-            {(() => {
-              let filtered = items.filter(it => {
-                const txt = filterText.toLowerCase()
-                const matchText = !txt ||
-                  (it.header?.company || '').toLowerCase().includes(txt) ||
-                  (it.header?.segment || '').toLowerCase().includes(txt) ||
-                  (it.header?.id || '').toLowerCase().includes(txt)
-                const matchCompany = !filterCompany || it.header?.company === filterCompany
-                return matchText && matchCompany
-              })
-
-              // Ordenar por periodo desde más reciente
-              filtered.sort((a, b) => {
-                const aDate = new Date(a.header?.period?.from || a.header?.effective_at || 0).getTime()
-                const bDate = new Date(b.header?.period?.from || b.header?.effective_at || 0).getTime()
-                return bDate - aDate
-              })
-
-              if (filtered.length === 0) {
-                return <div key="empty" className="text-sm text-gray-400">No se encontraron tarifas con ese filtro.</div>
-              }
-
-              return filtered.map((it, idx) => {
+            {/* Lista de tarifas filtrada */}
+            {filteredItems.length === 0 ? (
+              <div key="empty" className="text-sm text-gray-400">No se encontraron tarifas con ese filtro.</div>
+            ) : (
+              filteredItems.map((it, idx) => {
                 // Buscar el índice original en items para mantener selección
                 const originalIdx = items.findIndex(item => item.header.id === it.header.id)
                 return (
@@ -276,7 +278,7 @@ export default function Tariffs(){
                   </div>
                 )
               })
-            })()}
+            )}
           </div>
         </div>
 
