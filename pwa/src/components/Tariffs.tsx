@@ -129,7 +129,15 @@ export default function Tariffs(){
    }
 
     // Aplicar la copia de tarifa (recibe datos calculados)
-    function applyCopy(copyData: { rates: any; newFrom: string; newTo: string; newId: string; sourceId: string }) {
+    function applyCopy(copyData: { 
+      rates: any; 
+      newFrom: string; 
+      newTo: string; 
+      newId: string; 
+      sourceId: string;
+      effectiveAt: string;
+      sourcePdf: string;
+    }) {
       console.log('applyCopy called with copyData:', copyData)
       setModalForm(prev => {
         if (!prev) return prev
@@ -141,7 +149,10 @@ export default function Tariffs(){
             period: {
               from: copyData.newFrom,
               to: copyData.newTo
-            }
+            },
+            // Llenar campos de trazabilidad (en camelCase para TariffSet)
+            effectiveAt: copyData.effectiveAt,
+            sourcePdf: copyData.sourcePdf
           },
           rates: { ...prev.rates, ...copyData.rates }
         }
@@ -369,16 +380,17 @@ export default function Tariffs(){
                        })
                        console.log('Colisiones detectadas:', collisions.length)
 
-                       // Datos de la copia (para aplicar o confirmar)
-                       const copyData = {
-                         rates,
-                         newFrom: newFrom.toISOString().slice(0,10),
-                         newTo: newTo.toISOString().slice(0,10),
-                         newId,
-                         company,
-                         segment,
-                         sourceId: found.header?.id
-                       }
+                        // Datos de la copia (para aplicar o confirmar)
+                        const copyData = {
+                          rates,
+                          newFrom: newFrom.toISOString().slice(0,10),
+                          newTo: newTo.toISOString().slice(0,10),
+                          newId,
+                          sourceId: found.header?.id,
+                          // Campos adicionales del header
+                          effectiveAt: newFrom.toISOString().slice(0,10),
+                          sourcePdf: `Copied from ${found.header?.id} (trimestre anterior)`
+                        }
 
                        if (collisions.length > 0) {
                          console.log('Mostrando modal de confirmación')
