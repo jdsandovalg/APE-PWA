@@ -24,23 +24,21 @@ export default function Tariffs(){
   const [modalForm, setModalForm] = useState<any | null>(null)
    const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
    const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null)
-   const [filterText, setFilterText] = useState('')        // ← Filtro de búsqueda
-   const [filterCompany, setFilterCompany] = useState('') // Filtro por empresa
-   const [pendingCopyTariff, setPendingCopyTariff] = useState<any>(null) // ← datos de tarifa a copiar (pendiente de confirmación)
-   const [showCopyConfirm, setShowCopyConfirm] = useState(false) // ← modal de confirmación para copia
+   const [filterText, setFilterText] = useState('') // Campo único de búsqueda
+   const [pendingCopyTariff, setPendingCopyTariff] = useState<any>(null)
+   const [showCopyConfirm, setShowCopyConfirm] = useState(false)
 
    const leftCardSpan = selectedIdx === null ? 'md:col-span-3' : 'md:col-span-1'
 
-   // Computar lista filtrada y ordenada (reactivo a filterText, filterCompany, items)
+   // Computar lista filtrada y ordenada (reactivo a filterText, items)
    const filteredItems = React.useMemo(() => {
+     const txt = filterText.toLowerCase()
      let filtered = items.filter(it => {
-       const txt = filterText.toLowerCase()
        const matchText = !txt ||
          (it.header?.company || '').toLowerCase().includes(txt) ||
          (it.header?.segment || '').toLowerCase().includes(txt) ||
          (it.header?.id || '').toLowerCase().includes(txt)
-       const matchCompany = !filterCompany || it.header?.company === filterCompany
-       return matchText && matchCompany
+       return matchText
      })
 
      // Ordenar por periodo desde más reciente
@@ -51,7 +49,7 @@ export default function Tariffs(){
      })
 
      return filtered
-   }, [items, filterText, filterCompany])
+   }, [items, filterText])
 
   useEffect(() => {
     loadData()
@@ -219,8 +217,8 @@ export default function Tariffs(){
             </div>
           </div>
           <div className="mt-4 space-y-2">
-            {/* Filtros de búsqueda */}
-            <div className="flex flex-col sm:flex-row gap-2 mb-3">
+            {/* Filtro de búsqueda */}
+            <div className="flex gap-2 mb-3">
               <input
                 type="text"
                 placeholder="Buscar por empresa, segmento o ID..."
@@ -228,24 +226,14 @@ export default function Tariffs(){
                 onChange={e => setFilterText(e.target.value)}
                 className="flex-1 p-2 rounded bg-transparent border border-gray-700 text-sm focus:border-blue-400 focus:outline-none"
               />
-              <select
-                value={filterCompany}
-                onChange={e => setFilterCompany(e.target.value)}
-                className="p-2 rounded bg-transparent border border-gray-700 text-sm focus:border-blue-400 focus:outline-none"
-              >
-                <option value="">Todas las empresas</option>
-                {companies.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-              {(filterText || filterCompany) && (
+              {filterText && (
                 <button
                   className="px-3 py-2 rounded bg-gray-700 hover:bg-gray-600 text-xs"
-                  onClick={() => { setFilterText(''); setFilterCompany('') }}
+                  onClick={() => setFilterText('')}
                 >
                   Limpiar
-                 </button>
-               )}
+                </button>
+              )}
             </div>
 
             {/* Lista de tarifas filtrada */}
