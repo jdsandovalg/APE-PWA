@@ -51,6 +51,12 @@ export default function Tariffs(){
      return filtered
    }, [items, filterText])
 
+   // Deduplicar companies por id para evitar keys duplicadas en select
+   const uniqueCompanies = React.useMemo(() => {
+     const map = new Map(companies.map(c => [c.id, c]))
+     return Array.from(map.values())
+   }, [companies])
+
   useEffect(() => {
     loadData()
   }, [])
@@ -295,13 +301,13 @@ export default function Tariffs(){
             <div className="grid grid-cols-2 gap-2 mt-2">
               <div>
                 <label className="block text-xs text-gray-300">Empresa</label>
-                <select className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" value={modalForm.header.company} onChange={e=> {
-                  const val = e.target.value
-                  const comp = companies.find(c=> c.id === val)
-                  setModalForm({ ...modalForm, header: { ...modalForm.header, company: val, companyCode: comp?.code || modalForm.header.companyCode } })
-                }}>
-                  {companies.map(c=> (<option key={c.id} value={c.id}>{c.id} — {c.name}{c.code? ` (${c.code})`:''}</option>))}
-                </select>
+                 <select className="mt-1 p-1 rounded bg-transparent border border-gray-700 w-full text-sm" value={modalForm.header.company} onChange={e=> {
+                   const val = e.target.value
+                   const comp = uniqueCompanies.find(c=> c.id === val)
+                   setModalForm({ ...modalForm, header: { ...modalForm.header, company: val, companyCode: comp?.code || modalForm.header.companyCode } })
+                 }}>
+                   {uniqueCompanies.map(c=> (<option key={c.id} value={c.id}>{c.id} — {c.name}{c.code? ` (${c.code})`:''}</option>))}
+                 </select>
               </div>
               <div>
                 <label className="block text-xs text-gray-300">Segmento</label>
