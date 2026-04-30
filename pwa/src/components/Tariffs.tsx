@@ -22,10 +22,12 @@ export default function Tariffs(){
   const [loading, setLoading] = useState(true)
   const [showEditModal, setShowEditModal] = useState(false)
   const [modalForm, setModalForm] = useState<any | null>(null)
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
-  const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null)
-  const [filterText, setFilterText] = useState('')        // ← Filtro de búsqueda
-  const [filterCompany, setFilterCompany] = useState('') // Filtro por empresa
+   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
+   const [pendingDeleteIndex, setPendingDeleteIndex] = useState<number | null>(null)
+   const [filterText, setFilterText] = useState('')        // ← Filtro de búsqueda
+   const [filterCompany, setFilterCompany] = useState('') // Filtro por empresa
+   const [pendingCopyTariff, setPendingCopyTariff] = useState<any>(null) // ← datos de tarifa a copiar (pendiente de confirmación)
+   const [showCopyConfirm, setShowCopyConfirm] = useState(false) // ← modal de confirmación para copia
 
   // when nothing selected, let the list occupy the full grid width (avoid cramped layout)
   const leftCardSpan = selectedIdx === null ? 'md:col-span-3' : 'md:col-span-1'
@@ -85,21 +87,41 @@ export default function Tariffs(){
     setShowDeleteConfirm(true)
   }
 
-  async function executeRemovePending(){
-    const i = pendingDeleteIndex
-    if (i === null || !items[i]) return
+   async function executeRemovePending(){
+     const i = pendingDeleteIndex
+     if (i === null || !items[i]) return
 
-    try {
-      await deleteTariff(items[i].header.id)
-      await loadData() // Reload all data
-      setSelectedIdx(null)
-      setPendingDeleteIndex(null)
-      setShowDeleteConfirm(false)
-    } catch (error) {
-      console.error('Error deleting tariff:', error)
-      showToast('Error al eliminar tarifa', 'error')
-    }
-  }
+     try {
+       await deleteTariff(items[i].header.id)
+       await loadData() // Reload all data
+       setSelectedIdx(null)
+       setPendingDeleteIndex(null)
+       setShowDeleteConfirm(false)
+     } catch (error) {
+       console.error('Error deleting tariff:', error)
+       showToast('Error al eliminar tarifa', 'error')
+     }
+   }
+
+   // Aplicar la copia de tarifa (sin validación, se usa después de confirmar o si no hay colisiones)
+   function applyCopy(){
+     if (!pendingCopyTariff) return
+     setModalForm({
+       ...modalForm,
+       header: {
+         ...modalForm.header,
+         id: pendingCopyTariff.newId,
+         period: {
+           from: pendingCopyTariff.newFrom,
+           to: pendingCopyTariff.newTo
+         }
+       },
+       rates: { ...modalForm.rates, ...pendingCopyTariff.rates }
+     })
+     setPendingCopyTariff(null)
+     setShowCopyConfirm(false)
+     showToast(`Valores copiados desde tarifa ${pendingCopyTariff.sourceId}. Periodo actualizado.`, 'success')
+   }
 
   function updateSelected(partial: Partial<any>){
     if (selectedIdx === null) return
@@ -323,33 +345,42 @@ export default function Tariffs(){
                        if (!found) found = sorted[0]
                        if (!found) { try{ showToast('No se encontró tarifa previa para copiar','error') }catch(e){}; return }
 
-                       // copy rates into modalForm.rates
+                       // Calcular nuevo periodo
                        const rates = found.rates || found.rates || {}
-                       
-                       // Calculate new period dates: from = day after previous to, to = last day of 3rd month
                        const prevTo = new Date(found.header?.period?.to || found.header?.effective_at || '')
                        const newFrom = new Date(prevTo)
                        newFrom.setDate(newFrom.getDate() + 1)
-                       
-                       // Calculate new To: last day of the month 2 months after newFrom (trimestre = 3 meses)
-                       const newTo = new Date(newFrom.getFullYear(), newFrom.getMonth() + 3, 0) // day 0 of month+3 = last day of previous month
-
-                       // Generate new ID based on new period
+                       const newTo = new Date(newFrom.getFullYear(), newFrom.getMonth() + 3, 0)
                        const newId = makeId(company, segment, newFrom.toISOString().slice(0,10), newTo.toISOString().slice(0,10))
 
-                       setModalForm({
-                         ...modalForm,
-                         header: {
-                           ...modalForm.header,
-                           id: newId,
-                           period: {
-                             from: newFrom.toISOString().slice(0,10),
-                             to: newTo.toISOString().slice(0,10)
-                           }
-                         },
-                         rates: { ...modalForm.rates, ...rates }
+                       // Detectar colisiones: tarifas de misma empresa+segmento que se solapen con [newFrom, newTo]
+                       const collisions = items.filter(it => {
+                         const itFrom = new Date(it.header?.period?.from || 0)
+                         const itTo = new Date(it.header?.period?.to || 0)
+                         // Solapamiento: (newFrom <= itTo) AND (newTo >= itFrom)
+                         return it.header?.company === company &&
+                                it.header?.segment === segment &&
+                                newFrom <= itTo && newTo >= itFrom
                        })
-                       try{ showToast('Valores copiados desde la última tarifa: '+(found.header?.id||'')+'. Periodo actualizado.','success') }catch(e){}
+
+                       // Guardar datos pendientes de confirmación
+                       setPendingCopyTariff({
+                         rates,
+                         newFrom: newFrom.toISOString().slice(0,10),
+                         newTo: newTo.toISOString().slice(0,10),
+                         newId,
+                         company,
+                         segment,
+                         sourceId: found.header?.id
+                       })
+
+                       if (collisions.length > 0) {
+                         // Hay solapamientos → pedir confirmación
+                         setShowCopyConfirm(true)
+                       } else {
+                         // No hay conflicto → copiar directamente
+                       applyCopy()
+                       }
                      }catch(err){ console.error('Error copiando tarifa:', err); try{ showToast('Error al copiar tarifa','error') }catch(e){} }
                    }}>Copiar tarifa último trimestre</button>
                 </div>
@@ -426,16 +457,37 @@ export default function Tariffs(){
           </div>
         </div>
       )}
-      {showDeleteConfirm && (
-        <ConfirmModal
-          open={showDeleteConfirm}
-          title="Eliminar tarifa"
-          message="¿Eliminar este registro de tarifas? Esta acción no se puede deshacer."
-          onCancel={()=>{ setShowDeleteConfirm(false); setPendingDeleteIndex(null) }}
-          onConfirm={executeRemovePending}
-          confirmText="Eliminar"
-        />
-      )}
+       {showDeleteConfirm && (
+         <ConfirmModal
+           open={showDeleteConfirm}
+           title="Eliminar tarifa"
+           message="¿Eliminar este registro de tarifas? Esta acción no se puede deshacer."
+           onCancel={()=>{ setShowDeleteConfirm(false); setPendingDeleteIndex(null) }}
+           onConfirm={executeRemovePending}
+           confirmText="Eliminar"
+         />
+       )}
+
+       {/* Modal de confirmación para copiar tarifa con colisiones */}
+       {showCopyConfirm && pendingCopyTariff && (
+         <ConfirmModal
+           open={showCopyConfirm}
+           title="Confirmar copia de tarifa"
+           message={
+             <span>
+               La nueva tarifa para <strong>{pendingCopyTariff.company} — {pendingCopyTariff.segment}</strong> 
+               con periodo <strong>{pendingCopyTariff.newFrom}</strong> al <strong>{pendingCopyTariff.newTo}</strong> 
+               se solapa con una o más tarifas existentes.<br/><br/>
+               ¿Desea crear la tarifa de todas formas?<br/>
+               <small className="text-gray-400">Fuente: {pendingCopyTariff.sourceId}</small>
+             </span>
+           }
+           onCancel={()=>{ setShowCopyConfirm(false); setPendingCopyTariff(null) }}
+           onConfirm={applyCopy}
+           confirmText="Copiar de todas formas"
+           cancelText="Cancelar"
+         />
+       )}
     </>
   )
 }
